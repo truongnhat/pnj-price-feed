@@ -453,11 +453,16 @@ def fetch_metals(ts: str) -> list[dict]:
 
 
 FETCHERS = {
-    "SJC": fetch_sjc,
     "SJC via vnappmob.com": fetch_vnappmob_sjc,
-    "DOJI": fetch_doji,
     "Vietcombank": fetch_vietcombank,
     "Metals spot": fetch_metals,
+}
+
+# Not run: they fail on every GitHub-hosted run. Move back into FETCHERS when
+# the workflow runs from a Vietnam IP (self-hosted runner) or the sources change.
+DISABLED_FETCHERS = {
+    "SJC": fetch_sjc,    # sjc.com.vn answers 403 to non-Vietnam IPs
+    "DOJI": fetch_doji,  # vnappmob has no DOJI data; DOJI's own feed has a broken TLS chain
 }
 
 
