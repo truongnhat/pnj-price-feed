@@ -1,0 +1,6 @@
+[{"listingInfo": {"symbol": "PNJ", "board": "HSX", "ceiling": 105300, "floor": 91500, "refPrice": 98400},
+  "bidAsk": {"symbol": "PNJ", "bidPrices": [{"price": 98400, "volume": 1200}], "askPrices": []},
+  "matchPrice": {"symbol": "PNJ", "matchPrice": 98500, "highest": 98800, "lowest": 96900,
+    "accumulatedVolume": 1234500, "foreignBuyVolume": 210000, "foreignSellVolume": 305000,
+    "foreignBuyValue": 20685000000, "foreignSellValue": 30042500000,
+    "currentRoom": 1200000, "totalRoom": 16000000}}]

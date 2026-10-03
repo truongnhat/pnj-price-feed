@@ -35,6 +35,7 @@ from __future__ import annotations
 import csv
 import functools
 import html
+import json
 import logging
 import os
 import re
@@ -46,6 +47,7 @@ from decimal import Decimal, InvalidOperation
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Callable
+from urllib.parse import urlparse
 
 import requests
 
@@ -113,6 +115,10 @@ PNJ_API_URL = "https://edge-api.pnj.io/ecom-frontend/v1/get-gold-price"
 PNJ_HTML_URL = "https://giavang.pnj.com.vn/"
 
 STOCK = "PNJ"
+VCI_CHART_URL = "https://trading.vietcap.com.vn/api/chart/OHLCChart/gap-chart"
+VCI_BOARD_URL = "https://trading.vietcap.com.vn/api/price/symbols/getList"
+VCI_HEADERS = {"Referer": "https://trading.vietcap.com.vn/", "Origin": "https://trading.vietcap.com.vn",
+               "Content-Type": "application/json"}
 TCBS_BARS_URL = "https://apipubaws.tcbs.com.vn/stock-insight/v1/stock/bars-long-term"
 VND_STOCK_URL = "https://finfo-api.vndirect.com.vn/v4/stock_prices"
 VND_FOREIGN_URL = "https://finfo-api.vndirect.com.vn/v4/foreigns"
@@ -120,9 +126,9 @@ CAFEF_PRICE_URL = "https://s.cafef.vn/Ajax/PageNew/DataHistory/PriceHistory.ashx
 CAFEF_FOREIGN_URL = "https://s.cafef.vn/Ajax/PageNew/DataHistory/GDKhoiNgoai.ashx"
 STOCK_PRICE_MIN, STOCK_PRICE_MAX = 1_000, 10_000_000  # VND per share
 
-SBV_CENTRAL_URLS = (
-    ("sbv.gov.vn", "https://www.sbv.gov.vn/TyGia/faces/TyGiaTrungTam.jspx"),
-    ("webgia.com", "https://webgia.com/ty-gia/sbv/"),
+SBV_CENTRAL_URLS = (  # the SBV home page shows "Tỷ giá trung tâm USD/VND"
+    ("sbv.gov.vn", "https://sbv.gov.vn/vi/trang-chu"),
+    ("sbv.gov.vn", "https://www.sbv.gov.vn/en/trang-chu"),
     ("tygiausd.org", "https://tygiausd.org/"),
 )
 CENTRAL_RATE_MIN, CENTRAL_RATE_MAX = 15_000, 50_000  # VND per USD
@@ -181,8 +187,16 @@ class BlockedError(RuntimeError):
     """The host refused the request (HTTP 403/451): typically it blocks non-Vietnam IPs."""
 
 
+# Hosts that did not accept a connection earlier in this run (connect timeout):
+# later calls fail at once instead of waiting again.
+_dead_hosts: set = set()
+
+
 def http(method: str, url: str, session: requests.Session | None = None,
          headers: dict | None = None, **kwargs) -> requests.Response:
+    host = urlparse(url).hostname
+    if host in _dead_hosts:
+        raise RuntimeError(f"{method} {url}: skipped, {host} timed out earlier in this run")
     last_error: Exception | None = None
     for attempt in range(1, RETRIES + 1):
         try:
@@ -190,6 +204,11 @@ def http(method: str, url: str, session: requests.Session | None = None,
                                                  timeout=TIMEOUT, **kwargs)
             resp.raise_for_status()
             return resp
+        except requests.exceptions.ConnectTimeout as exc:
+            # Typically a firewall silently dropping this IP: retrying only waits longer.
+            _dead_hosts.add(host)
+            raise RuntimeError(f"{method} {url}: connect timeout (host may drop "
+                               "non-Vietnam traffic)") from exc
         except requests.RequestException as exc:
             last_error = exc
             log.warning("%s %s failed (attempt %d/%d): %s", method, url, attempt, RETRIES, exc)
@@ -470,6 +489,14 @@ VNAPPMOB_LABELS = {
     },
 }
 
+# Rows written before a check existed and known to be wrong; dropped on read.
+# (source, item, timestamp)
+DATA_CORRECTIONS = {
+    # value / volume = ~7,100 VND per share vs a ~70,000+ VND share price:
+    # CafeF's value unit was misread. Values are now checked against the close.
+    ("cafef.vn", "PNJ NN GT mua/bán", "2026-10-03T15:20:06+07:00"),
+}
+
 # One-time renames of item names already written to the CSV, applied on read
 # so history and new rows share a key.
 ITEM_RENAMES = {
@@ -500,13 +527,14 @@ def parse_vnappmob(payload: dict, brand: str, ts: str) -> list[dict]:
     return gold_rows(ts, "vnappmob.com", pairs)
 
 
-# Brand feeds also list jewelry, silver, gifts... keep 99.99 rings and bars,
-# plus raw-material / market / other-brand lines (case-insensitive substrings).
-GOLD_KEEP = ("nhẫn", "nhan ", "miếng", "mieng", "9999", "999.9", "99.99", "99,99", "24k",
-             "nguyên liệu", "nguyen lieu", "thị trường", "thi truong", "thương hiệu khác",
-             "thuong hieu khac", "rồng thăng long", "vrtl", "kim gia bảo", "kim bảo",
-             "sjc", "kim thần tài", "thần tài")
-GOLD_DROP = ("bạc", "silver")
+# Brand feeds also list jewelry, silver, gifts... keep rings and bars (incl. the
+# brands' own bullion lines), plus raw-material / market / other-brand lines.
+# Case-insensitive substrings; GOLD_DROP wins.
+GOLD_KEEP = ("nhẫn", "nhan ", "miếng", "mieng", "sjc", "nguyên liệu", "nguyen lieu",
+             "thị trường", "thi truong", "thương hiệu khác", "thuong hieu khac", "1 lượng",
+             "1 luong", "kim bảo", "kim gia bảo", "phúc lộc tài", "thần tài")
+GOLD_DROP = ("bạc", "silver", "trang sức", "trang suc", "quà", "gift", "đồng vàng")
+GOLD_FILTERED_SOURCES = ("giavang.org", "pnj.com.vn")
 
 
 def keep_gold_label(label: str) -> bool:
@@ -642,11 +670,75 @@ def _iso_date(text) -> str:
 
 
 def _records(payload, *path) -> list[dict]:
+    original = payload
     for key in path:
         payload = payload.get(key) if isinstance(payload, dict) else None
     if not isinstance(payload, list) or not payload or not isinstance(payload[0], dict):
-        raise ValueError(f"no records at {'/'.join(path) or 'root'}")
+        raise ValueError(f"no records at {'/'.join(path) or 'root'}, body "
+                         f"{json.dumps(original, ensure_ascii=False)[:300]!r}")
     return payload
+
+
+def _epoch_date(value) -> str:
+    """Epoch seconds or milliseconds (number or string) -> Vietnam date YYYY-MM-DD."""
+    number = float(value)
+    if number > 1e11:
+        number /= 1000
+    return datetime.fromtimestamp(number, VN_TZ).strftime("%Y-%m-%d")
+
+
+def parse_ohlc_arrays(payload) -> dict:
+    """Chart APIs (Vietcap, TradingView style): {"t": [...], "o": [...], "h", "l", "c", "v"},
+    possibly inside a list (one entry per symbol) or under "data". Uses the last bar."""
+    def find(node):
+        if isinstance(node, dict):
+            if all(isinstance(node.get(k), list) and node.get(k) for k in "tohlc"):
+                return node
+            node = node.get("data")
+        if isinstance(node, list):
+            for item in node:
+                found = find(item)
+                if found:
+                    return found
+        return None
+    bars = find(payload)
+    if not bars:
+        raise ValueError(f"no t/o/h/l/c arrays, body {json.dumps(payload, ensure_ascii=False)[:300]!r}")
+    i = len(bars["t"]) - 1
+    volumes = bars.get("v") or []
+    return {"date": _epoch_date(bars["t"][i]), "open": bars["o"][i], "high": bars["h"][i],
+            "low": bars["l"][i], "close": bars["c"][i],
+            "volume": volumes[i] if i < len(volumes) else None}
+
+
+def parse_vci_board_foreign(payload) -> dict:
+    """Vietcap price board: [{"listingInfo": {...}, "matchPrice": {...}, ...}].
+
+    Field names are matched by meaning (foreign + buy/sell + volume/value) so a
+    renamed field fails loudly instead of being guessed.
+    """
+    item = payload[0] if isinstance(payload, list) and payload else payload
+    if not isinstance(item, dict):
+        raise ValueError(f"no board entry, body {json.dumps(payload, ensure_ascii=False)[:300]!r}")
+    flat = {}
+    for part in item.values():
+        if isinstance(part, dict):
+            flat.update({k: v for k, v in part.items() if not isinstance(v, (dict, list))})
+    def pick(side, kind):
+        for key, value in flat.items():
+            k = key.lower()
+            if "foreign" in k and side in k and any(w in k for w in kind) and \
+                    not any(w in k for w in ("room", "total", "percent", "net")):
+                return value
+        return None
+    found = {"buy_vol": pick("buy", ("vol", "qtty", "quantity")),
+             "sell_vol": pick("sell", ("vol", "qtty", "quantity")),
+             "buy_val": pick("buy", ("val",)), "sell_val": pick("sell", ("val",))}
+    if found["buy_vol"] is None and found["sell_vol"] is None:
+        raise ValueError(f"no foreign buy/sell fields; fields: {sorted(flat)[:60]}")
+    date = next((v for k, v in flat.items() if "tradingdate" in k.lower() and v), None)
+    found["date"] = _iso_date(date) if date else None
+    return found
 
 
 def parse_tcbs_bars(payload: dict) -> dict:
@@ -716,25 +808,42 @@ def stock_session_rows(session: dict, source: str, ts: str) -> list[dict]:
     return rows
 
 
-def stock_foreign_rows(foreign: dict, source: str, ts: str) -> list[dict]:
-    """Foreign investors: buy/sell volume (shares) and value (VND)."""
+def foreign_value_factor(vols, vals, close: Decimal | None) -> int | None:
+    """Unit of the reported values (1, 1e3, 1e6 or 1e9 VND), checked against the close.
+
+    value / volume is what foreigners paid per share, so after scaling it must
+    be within 20% of the session close. No close, or no unit fits: None, and
+    the value row is left out rather than guessed.
+    """
+    ratios = [val / vol for vol, val in zip(vols, vals) if vol and val]
+    if close is None or not ratios:
+        return None
+    for factor in (1, 10 ** 3, 10 ** 6, 10 ** 9):
+        if all(Decimal("0.8") * close <= r * factor <= Decimal("1.2") * close for r in ratios):
+            return factor
+    return None
+
+
+def stock_foreign_rows(foreign: dict, source: str, ts: str, close: Decimal | None = None) -> list[dict]:
+    """Foreign investors: buy/sell volume (shares) and, when it checks out, value (VND)."""
     vols = [parse_number(foreign.get(k), allow_zero=True) for k in ("buy_vol", "sell_vol")]
     vals = [parse_number(foreign.get(k), allow_zero=True) for k in ("buy_val", "sell_val")]
     if all(v is None for v in vols):
         raise ValueError(f"{source}: no foreign volumes")
-    # Values may be reported in VND, thousand, million or billion VND: pick the
-    # power of 1000 that makes value / volume a plausible price per share.
-    ratios = [val / vol for vol, val in zip(vols, vals) if vol and val]
-    factor = 1
-    if ratios:
-        while ratios[0] * factor < STOCK_PRICE_MIN and factor < 10 ** 9:
-            factor *= 1000
-    vals = [v * factor if v is not None else None for v in vals]
-    rows = [_session_date_row(ts, source, f"{STOCK} NN ngày phiên", foreign["date"]),
-            make_row(ts, source, "stock", "foreign", f"{STOCK} NN KL mua/bán",
-                     *[v.quantize(Decimal(1)) if v is not None else None for v in vols], "", "cp")]
+    rows = []
+    if foreign.get("date"):
+        rows.append(_session_date_row(ts, source, f"{STOCK} NN ngày phiên", foreign["date"]))
+    rows.append(make_row(ts, source, "stock", "foreign", f"{STOCK} NN KL mua/bán",
+                         *[v.quantize(Decimal(1)) if v is not None else None for v in vols], "", "cp"))
+    factor = foreign_value_factor(vols, vals, close)
+    if factor is None:
+        if any(vals):
+            log.warning("%s: foreign values %s not consistent with close %s for volumes %s; "
+                        "value row skipped", source, [foreign.get("buy_val"), foreign.get("sell_val")],
+                        close, [foreign.get("buy_vol"), foreign.get("sell_vol")])
+        return rows
     value_row = make_row(ts, source, "stock", "foreign", f"{STOCK} NN GT mua/bán",
-                         *[v.quantize(Decimal(1)) if v is not None else None for v in vals],
+                         *[(v * factor).quantize(Decimal(1)) if v is not None else None for v in vals],
                          "VND", "VND")
     return rows + ([value_row] if value_row else [])
 
@@ -747,6 +856,7 @@ CENTRAL_PATTERNS = (
     re.compile(r"1\s*(?:USD|Đô\s*la\s*Mỹ)\s*=\s*" + _NUM + r"\s*(?:VND|VNĐ|đồng)", re.I),
     # "... tỷ giá trung tâm ... 25.123", with no ceiling/floor ("trần"/"sàn") in between
     re.compile(r"trung\s*tâm((?:(?!trần|sàn)[^0-9]){0,160})" + _NUM, re.I),
+    re.compile(r"central\s*(?:exchange\s*)?rate((?:(?!ceiling|floor)[^0-9]){0,160})" + _NUM, re.I),
 )
 
 
@@ -934,9 +1044,19 @@ def _json(url: str, **params):
     return http("GET", url, headers=BROWSER_HEADERS, params=params).json()
 
 
+# Close of the PNJ session fetched in this run, used to check foreign values.
+_session_close: dict = {}
+
+
+def _vci_post(url: str, body: dict):
+    return http("POST", url, headers={**BROWSER_HEADERS, **VCI_HEADERS}, json=body).json()
+
+
 def fetch_pnj_stock(ts: str) -> list[dict]:
     now = int(time.time())
     providers = [
+        ("vietcap.com.vn", lambda: parse_ohlc_arrays(_vci_post(
+            VCI_CHART_URL, {"timeFrame": "ONE_DAY", "symbols": [STOCK], "to": now, "countBack": 10}))),
         ("tcbs.com.vn", lambda: parse_tcbs_bars(_json(
             TCBS_BARS_URL, ticker=STOCK, type="stock", resolution="D",
             **{"from": now - 15 * 86400, "to": now}))),
@@ -945,19 +1065,24 @@ def fetch_pnj_stock(ts: str) -> list[dict]:
         ("cafef.vn", lambda: parse_cafef_price(_json(
             CAFEF_PRICE_URL, Symbol=STOCK, StartDate="", EndDate="", PageIndex=1, PageSize=1))),
     ]
-    return first_working("PNJ stock", [
+    rows = first_working("PNJ stock", [
         (source, lambda s=source, f=fn: stock_session_rows(f(), s, ts)) for source, fn in providers])
+    close = next(r for r in rows if r["item"] == f"{STOCK} đóng cửa")
+    _session_close["close"] = Decimal(close["sell"])
+    return rows
 
 
 def fetch_pnj_foreign(ts: str) -> list[dict]:
     providers = [
+        ("vietcap.com.vn", lambda: parse_vci_board_foreign(_vci_post(VCI_BOARD_URL, {"symbols": [STOCK]}))),
         ("vndirect.com.vn", lambda: parse_vnd_foreign(_json(
             VND_FOREIGN_URL, q=f"code:{STOCK}", sort="tradingDate", size=1))),
         ("cafef.vn", lambda: parse_cafef_foreign(_json(
             CAFEF_FOREIGN_URL, Symbol=STOCK, StartDate="", EndDate="", PageIndex=1, PageSize=1))),
     ]
     return first_working("PNJ foreign", [
-        (source, lambda s=source, f=fn: stock_foreign_rows(f(), s, ts)) for source, fn in providers])
+        (source, lambda s=source, f=fn: stock_foreign_rows(f(), s, ts, _session_close.get("close")))
+        for source, fn in providers])
 
 
 # Every source gets one row in health.csv. Sources that refuse non-Vietnam IPs
@@ -993,6 +1118,10 @@ def read_csv(path: Path) -> list[dict]:
             rows = list(reader)
         else:
             raise ValueError(f"{path} header {reader.fieldnames} does not match {COLUMNS}")
+    rows = [r for r in rows
+            if (r["source"], r["item"], r["timestamp"]) not in DATA_CORRECTIONS
+            and not (r["category"] == "gold" and r["source"] in GOLD_FILTERED_SOURCES
+                     and not keep_gold_label(r["item"]))]  # same filter as collection
     for row in rows:
         row["item"] = ITEM_RENAMES.get((row["source"], row["item"]), row["item"])
         if row["category"] == "gold" and row["currency"] == "VND":

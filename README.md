@@ -8,7 +8,7 @@ Feed giá thị trường công khai, tự cập nhật **mỗi giờ** (phút 1
 - **Giá vàng trong nước:** SJC, PNJ, DOJI, Bảo Tín Minh Châu (`BTMC`), Bảo Tín Mạnh Hải (`BTMH`) và Phú Quý. Lấy vàng miếng và nhẫn 999.9, thêm các dòng "nguyên liệu", "vàng thị trường" và "thương hiệu khác" nếu nguồn có. Giá luôn quy về **VND/lượng**.
 - **Tỷ giá:** Vietcombank (tiền mặt, chuyển khoản) và tỷ giá trung tâm USD/VND của NHNN (`price_type=central`).
 - **Vàng/bạc thế giới:** XAU, XAG (USD/oz).
-- **Cổ phiếu PNJ (HOSE):** ngày phiên, giá mở cửa, cao nhất, thấp nhất, đóng cửa, khối lượng khớp lệnh, khối ngoại mua/bán (`category=stock`).
+- **Cổ phiếu PNJ (HOSE):** ngày phiên, giá mở cửa, cao nhất, thấp nhất, đóng cửa, khối lượng khớp lệnh, khối ngoại mua/bán (`category=stock`). Giá trị khối ngoại chỉ được ghi khi khớp với giá đóng cửa (sai lệch không quá 20%).
 
 **Các file**
 
@@ -40,12 +40,12 @@ Where several providers are listed, they are tried in order and the **first one 
 |---|---|---|---|
 | `SJC (sjc.com.vn)` | `gold` / `retail` | `sjc.com.vn` | Blocks non-Vietnam IPs; shows `blocked_non_vn` on GitHub-hosted runners |
 | `SJC via vnappmob.com` | `gold` / `retail` | `api.vnappmob.com/api/v2/gold/sjc` | Free public API; a short-lived token is requested on each run and never stored |
-| `PNJ gold`, `DOJI gold`, `BTMC gold`, `BTMH gold`, `Phú Quý gold` | `gold` / `retail` | `vnappmob.com` → `giavang.org/trong-nuoc/<brand>/` → brand site (PNJ: `edge-api.pnj.io`, `giavang.pnj.com.vn`; DOJI: XML feed) | 99.99 rings and bars, plus raw-material / market / other-brand lines. `item` always starts with the brand: `PNJ …`, `DOJI …`, `BTMC …`, `BTMH …`, `Phú Quý …` |
+| `PNJ gold`, `DOJI gold`, `BTMC gold`, `BTMH gold`, `Phú Quý gold` | `gold` / `retail` | `vnappmob.com` → `giavang.org/trong-nuoc/<brand>/` → brand site (PNJ: `edge-api.pnj.io`, `giavang.pnj.com.vn`; DOJI: XML feed) | Rings and bars (including the brand's own bullion lines such as Kim Bảo, Phúc Lộc Tài, Kim Gia Bảo), plus raw-material / market / other-brand lines. Jewelry, gifts, coins and silver are left out. `item` always starts with the brand: `PNJ …`, `DOJI …`, `BTMC …`, `BTMH …`, `Phú Quý …` |
 | `Vietcombank` | `fx` / `cash`, `transfer` | `vietcombank.com.vn` JSON → legacy XML | |
-| `SBV central rate` | `fx` / `central` | `sbv.gov.vn` → `webgia.com` → `tygiausd.org` | USD/VND central rate; `buy` = `sell` = the rate |
+| `SBV central rate` | `fx` / `central` | `sbv.gov.vn` home page (vi, then en) → `tygiausd.org` | USD/VND central rate; `buy` = `sell` = the rate |
 | `Metals spot` | `gold`, `silver` / `spot` | `gold-api.com` → `goldprice.org` → `stooq.com` | XAU, XAG in USD per troy oz |
-| `PNJ stock` | `stock` / `session`, `session_date` | TCBS → VNDirect → CafeF | Latest HOSE session (see below) |
-| `PNJ foreign trading` | `stock` / `foreign`, `session_date` | VNDirect → CafeF | Foreign investors' buy/sell (see below) |
+| `PNJ stock` | `stock` / `session`, `session_date` | Vietcap → TCBS → VNDirect → CafeF | Latest HOSE session (see below). During trading hours the latest bar is the session in progress |
+| `PNJ foreign trading` | `stock` / `foreign`, `session_date` | Vietcap price board → VNDirect → CafeF | Foreign investors' buy/sell (see below) |
 
 ## Files
 
@@ -99,7 +99,9 @@ The schema has no date column, so the session date is a row of its own.
 | `PNJ NN KL mua/bán` | `foreign` | foreign **buy** volume | foreign **sell** volume | empty | `cp` |
 | `PNJ NN GT mua/bán` | `foreign` | foreign **buy** value | foreign **sell** value | `VND` | `VND` |
 
-Prices quoted in thousand VND are converted to VND per share. Foreign trading values are converted to VND, whichever unit the provider reports in.
+Prices quoted in thousand VND are converted to VND per share.
+
+**Foreign trading values are cross-checked.** Value ÷ volume is what foreign investors paid per share, so after converting the provider's unit (VND, thousand, million or billion VND) it must be within 20% of the same run's `PNJ đóng cửa`. If no close was fetched in the run, or no unit fits, the `PNJ NN GT mua/bán` row is left out and the run logs the raw values. The volume row is still written. `PNJ NN ngày phiên` is written only when the provider states the session date.
 
 ### health.csv
 
@@ -111,7 +113,11 @@ Prices quoted in thousand VND are converted to VND per share. Foreign trading va
 | `last_error` | Vietnam time of the last failed run |
 | `error_msg` | Message from that last failure, listing each provider tried (it can be older than `last_success`) |
 
-`blocked_non_vn` sources don't create GitHub Actions warnings; other errors do. Moving the workflow to a self-hosted runner in Vietnam would unblock them.
+`blocked_non_vn` sources don't create GitHub Actions warnings; other errors do. A host that doesn't accept a connection (connect timeout, typical of firewalls that drop foreign traffic) is skipped for the rest of the run instead of being retried.
+
+### Data corrections
+
+Rows known to be wrong are dropped when the CSV is read (`DATA_CORRECTIONS` in `scripts/fetch_prices.py`), so they vanish from `prices.csv` and `latest.csv` on the next run. So far that covers one row: the 2026-10-03 15:20 CafeF foreign-value row, whose unit had been misread. Gold rows that no longer pass the product filter are dropped the same way. Moving the workflow to a self-hosted runner in Vietnam would unblock them.
 
 ### Schema changes (backward compatibility)
 
