@@ -7,9 +7,13 @@ Sources (all public, no authentication):
   - gold-api.com : international spot prices for gold (XAU) and silver (XAG)
 
 Output files (UTF-8, no BOM, comma-separated, "\n" line endings):
-  - data/prices.csv : append-only history. A row is written only when a price
-                      differs from the last recorded row for the same key.
+  - data/prices.csv : price history. A row is appended only when a price
+                      differs from the last recorded row for the same key;
+                      otherwise only that row's last_checked is refreshed.
   - data/latest.csv : the latest row per key (same schema).
+
+timestamp    = first time this specific price was observed.
+last_checked = most recent successful check of the source that returned it.
 
 Exit codes: 0 if at least one source succeeded, 1 if every source failed.
 """
@@ -39,7 +43,10 @@ COLUMNS = [
     "currency",
     "unit",
     "status",
+    "last_checked",  # appended last: positional readers of the first 10 columns are unaffected
 ]
+# Header written before last_checked existed; such files are migrated on read.
+LEGACY_COLUMNS = COLUMNS[:-1]
 KEY_COLUMNS = ("source", "category", "price_type", "item")
 VALUE_COLUMNS = ("buy", "sell", "currency", "unit", "status")
 
@@ -109,6 +116,7 @@ def make_row(ts, source, category, price_type, item, buy, sell, currency, unit) 
         "currency": currency,
         "unit": unit,
         "status": "ok" if buy is not None and sell is not None else "partial",
+        "last_checked": ts,
     }
 
 
@@ -243,6 +251,9 @@ def read_csv(path: Path) -> list[dict]:
         return []
     with path.open("r", encoding="utf-8-sig", newline="") as fh:
         reader = csv.DictReader(fh)
+        if reader.fieldnames == LEGACY_COLUMNS:
+            log.info("%s: migrating legacy header, adding last_checked", path)
+            return [{**row, "last_checked": row["timestamp"]} for row in reader]
         if reader.fieldnames != COLUMNS:
             raise ValueError(f"{path} header {reader.fieldnames} does not match {COLUMNS}")
         return list(reader)
@@ -259,12 +270,18 @@ def write_csv(path: Path, rows: list[dict]) -> None:
 
 
 def merge(history: list[dict], new_rows: list[dict]) -> tuple[list[dict], int]:
-    """Append rows whose values differ from the latest recorded row for the same key."""
+    """Append rows whose values differ from the latest recorded row for the same key.
+
+    An unchanged price keeps its row (and its original timestamp); only that
+    row's last_checked is moved forward. Keys absent from new_rows (source
+    failed or item no longer published) keep their old last_checked.
+    """
     latest = {key_of(r): r for r in history}
     added = 0
     for row in new_rows:
         prev = latest.get(key_of(row))
         if prev and all(prev[c] == row[c] for c in VALUE_COLUMNS):
+            prev["last_checked"] = row["last_checked"]
             continue
         history.append(row)
         latest[key_of(row)] = row
@@ -307,8 +324,9 @@ def main() -> int:
     history, added = merge(read_csv(PRICES_CSV), unique)
     write_csv(PRICES_CSV, history)
     write_csv(LATEST_CSV, latest_rows(history))
-    log.info("Appended %d changed rows (%d total). Failed sources: %s",
-             added, len(history), ", ".join(failed) or "none")
+    log.info("Appended %d changed rows, refreshed last_checked for %d (%d total). "
+             "Failed sources: %s", added, len(unique) - added, len(history),
+             ", ".join(failed) or "none")
 
     return 1 if len(failed) == len(FETCHERS) else 0
 

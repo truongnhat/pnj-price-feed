@@ -16,7 +16,7 @@ It's built so other tools and AI agents can read it straight from the raw GitHub
 
 | File | Content |
 |---|---|
-| `data/prices.csv` | **Append-only history.** A new row is added only when a price differs from the last recorded row for the same key. |
+| `data/prices.csv` | **Price history.** A new row is added only when a price differs from the last recorded row for the same key. If the price is unchanged, only that row's `last_checked` is updated. |
 | `data/latest.csv` | Latest row per key, with the same schema. Use this when you only need current prices. |
 
 ## CSV schema
@@ -35,12 +35,25 @@ The files are UTF-8 (no BOM), comma-separated, with `\n` line endings and a head
 | `currency` | ISO 4217 | Currency of `buy`/`sell` | `VND`, `USD` |
 | `unit` | string | Quantity the price refers to | `luong` (1 lượng = 37.5 g), `1 USD`, `troy_oz` |
 | `status` | string | `ok` = buy and sell both present; `partial` = only one of them (e.g. a bank does not buy that currency in cash) | `ok` |
+| `last_checked` | ISO-8601, `+07:00` | Vietnam time of the **most recent successful check** of the source that returned this price. Updated on every run where the source responds, even if the price did not change | `2026-10-03T14:17:04+07:00` |
 
 Notes:
 - **Key** = (`source`, `category`, `price_type`, `item`). `latest.csv` has exactly one row per key.
 - For `spot` prices, `buy` and `sell` both hold the same mid price.
-- Because a row is written only on change, an unchanged price keeps its original `timestamp`. The time a run happened is in the commit history and the Actions logs.
+- `timestamp` = when this exact price was **first observed**. It never changes for a given row.
+- `last_checked` = when the source **last confirmed** this price. In `prices.csv`, a row covers the interval `[timestamp, last_checked]`. Older rows keep the `last_checked` of the last run before the price changed.
+- **Stale or unchanged?** The workflow runs hourly. For a row in `latest.csv`:
+  - `last_checked` within roughly the last 2 hours: the source is healthy. If `timestamp` is old, the price simply hasn't changed.
+  - `last_checked` older than that: the source was unreachable or failed to parse (or stopped publishing that item), so treat the price as **stale**.
+  - Example: `age_hours = (now - last_checked).total_seconds() / 3600; stale = age_hours > 2`.
 - New columns will only ever be **appended at the end**. Existing columns will not be renamed or reordered.
+
+### Schema changes (backward compatibility)
+
+| Version | Change |
+|---|---|
+| v2 | Added `last_checked` as the 11th (last) column. The first 10 columns are unchanged. Readers that select columns by name, or by position 1–10, keep working. A file with the old 10-column header is migrated automatically on the next run, with `last_checked` set to `timestamp`. |
+| v1 | Initial 10 columns. |
 
 ## Run locally
 
@@ -60,7 +73,7 @@ The workflow is `.github/workflows/update_prices.yml`:
 2. Checks out the repository, sets up Python 3.12 and installs `requirements.txt`.
 3. Runs the offline unit tests. If they fail, nothing is fetched or committed.
 4. Runs `scripts/fetch_prices.py`.
-5. Commits `data/prices.csv` and `data/latest.csv` **only if they changed**, then pushes. If the push is rejected, it rebases and retries.
+5. Commits `data/prices.csv` and `data/latest.csv` **only if they changed**, then pushes. If the push is rejected, it rebases and retries. Because `last_checked` moves forward on every successful run, expect one small commit per hourly run. If every source fails, the files are unchanged and nothing is committed; the stale `last_checked` values are themselves the signal.
 
 Permissions and safety:
 - The only permission is `contents: write`, granted to the built-in `GITHUB_TOKEN` so the workflow can push. It needs no secrets or API keys.

@@ -90,27 +90,62 @@ class CsvTests(unittest.TestCase):
         self.assertEqual(added, 1)
         self.assertEqual(len(fp.latest_rows(history)), 4)
 
+    def test_merge_refreshes_last_checked_only(self):
+        history, _ = fp.merge([], fp.parse_vcb_json(VCB_JSON, TS))
+        later = "2026-10-03T11:17:05+07:00"
+        history, added = fp.merge(history, fp.parse_vcb_json(VCB_JSON, later))
+        self.assertEqual(added, 0)
+        self.assertTrue(all(r["timestamp"] == TS and r["last_checked"] == later for r in history))
+
     def test_main_end_to_end(self):
+        gold_down = mock.Mock(side_effect=RuntimeError("down"))
         fake = {"SJC": lambda ts: fp.parse_sjc(SJC_PAYLOAD, ts),
                 "Vietcombank": lambda ts: fp.parse_vcb_json(VCB_JSON, ts),
-                "gold-api.com": mock.Mock(side_effect=RuntimeError("down"))}
+                "gold-api.com": gold_down}
+        gold_ok = lambda ts: fp.parse_gold_api({"price": 2650.1}, "XAU", ts)  # noqa: E731
+        t1, t2, t3 = (f"2026-10-03T{h}:17:05+07:00" for h in ("10", "11", "12"))
         with tempfile.TemporaryDirectory() as d:
             prices, latest = Path(d) / "prices.csv", Path(d) / "latest.csv"
             with mock.patch.object(fp, "FETCHERS", fake), \
                  mock.patch.object(fp, "PRICES_CSV", prices), \
                  mock.patch.object(fp, "LATEST_CSV", latest):
-                self.assertEqual(fp.main(), 0)
+                with mock.patch.object(fp, "now_vn", return_value=t1):
+                    self.assertEqual(fp.main(), 0)
                 first = prices.read_bytes()
-                self.assertEqual(fp.main(), 0)  # second run: no changes, no duplicates
-                self.assertEqual(prices.read_bytes(), first)
-            raw = first.decode("utf-8")
+                # Second run, same prices: no new rows, only last_checked moves.
+                with mock.patch.object(fp, "now_vn", return_value=t2):
+                    self.assertEqual(fp.main(), 0)
+                self.assertEqual(prices.read_bytes(), first.replace(t1.encode(), t2.encode())
+                                 .replace(b"\n" + t2.encode(), b"\n" + t1.encode()))
+                # Third run: SJC down, gold-api back. SJC rows keep the t2 last_checked.
+                fake["SJC"], fake["gold-api.com"] = gold_down, gold_ok
+                with mock.patch.object(fp, "now_vn", return_value=t3):
+                    self.assertEqual(fp.main(), 0)
+            raw = prices.read_bytes().decode("utf-8")
             self.assertFalse(raw.startswith("\ufeff"))
             self.assertNotIn("\r", raw)
             with prices.open(encoding="utf-8", newline="") as fh:
                 data = list(csv.DictReader(fh))
             self.assertEqual(list(data[0].keys()), fp.COLUMNS)
-            self.assertEqual(len(data), 6)
-            self.assertEqual(len({fp.key_of(r) for r in data}), 6)
+            self.assertEqual(len(data), 7)
+            self.assertEqual(len({fp.key_of(r) for r in data}), 7)
+            by_source = {}
+            for r in data:
+                by_source.setdefault(r["source"], set()).add((r["timestamp"], r["last_checked"]))
+            self.assertEqual(by_source["SJC"], {(t1, t2)})          # stale source
+            self.assertEqual(by_source["Vietcombank"], {(t1, t3)})  # unchanged price, fresh check
+            self.assertEqual(by_source["gold-api.com"], {(t3, t3)})
+            with latest.open(encoding="utf-8", newline="") as fh:
+                self.assertEqual(list(csv.DictReader(fh)), sorted(data, key=fp.key_of))
+
+    def test_legacy_header_is_migrated(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "p.csv"
+            p.write_text(",".join(fp.LEGACY_COLUMNS) + "\n"
+                         f"{TS},SJC,gold,retail,X,1,2,VND,luong,ok\n", encoding="utf-8")
+            (row,) = fp.read_csv(p)
+            self.assertEqual(row["last_checked"], TS)
+            self.assertEqual(list(row.keys()), fp.COLUMNS)
 
     def test_main_all_sources_fail(self):
         boom = mock.Mock(side_effect=RuntimeError("down"))
@@ -132,6 +167,7 @@ class CsvTests(unittest.TestCase):
         for name in ("prices.csv", "latest.csv"):
             header = (root / name).read_text(encoding="utf-8").splitlines()[0]
             self.assertEqual(header, ",".join(fp.COLUMNS))
+            self.assertTrue(header.endswith(",last_checked"))
             self.assertIsNone(re.search(r"\s", header))
 
 

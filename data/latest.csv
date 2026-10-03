@@ -1,1 +1,1 @@
-timestamp,source,category,price_type,item,buy,sell,currency,unit,status
+timestamp,source,category,price_type,item,buy,sell,currency,unit,status,last_checked
