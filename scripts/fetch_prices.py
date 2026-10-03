@@ -495,6 +495,10 @@ DATA_CORRECTIONS = {
     # value / volume = ~7,100 VND per share vs a ~70,000+ VND share price:
     # CafeF's value unit was misread. Values are now checked against the close.
     ("cafef.vn", "PNJ NN GT mua/bán", "2026-10-03T15:20:06+07:00"),
+    # CafeF foreign volumes for the 2026-10-02 session (22,400 / 67,800) do not
+    # match the exchange (foreign buy 4,200,700 shares, confirmed on a broker app).
+    ("cafef.vn", "PNJ NN KL mua/bán", "2026-10-03T15:20:06+07:00"),
+    ("cafef.vn", "PNJ NN ngày phiên", "2026-10-03T15:20:06+07:00"),
 }
 
 # One-time renames of item names already written to the CSV, applied on read
@@ -1086,8 +1090,9 @@ def fetch_pnj_foreign(ts: str) -> list[dict]:
         ("vietcap.com.vn", lambda: parse_vci_board_foreign(_vci_post(VCI_BOARD_URL, {"symbols": [STOCK]}))),
         ("vndirect.com.vn", lambda: parse_vnd_foreign(_json(
             VND_FOREIGN_URL, q=f"code:{STOCK}", sort="tradingDate", size=1))),
-        ("cafef.vn", lambda: parse_cafef_foreign(_json(
-            CAFEF_FOREIGN_URL, Symbol=STOCK, StartDate="", EndDate="", PageIndex=1, PageSize=1))),
+        # CafeF's GDKhoiNgoai is not used: on 2026-10-03 it returned foreign
+        # volumes ~190x below the exchange's figures. parse_cafef_foreign stays
+        # for reference/tests only.
     ]
     return first_working("PNJ foreign", [
         (source, lambda s=source, f=fn: stock_foreign_rows(f(), s, ts, _session_close.get("close")))

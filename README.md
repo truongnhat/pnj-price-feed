@@ -45,7 +45,7 @@ Where several providers are listed, they are tried in order and the **first one 
 | `SBV central rate` | `fx` / `central` | `sbv.gov.vn` home page (vi, then en) → `tygiausd.org` | USD/VND central rate; `buy` = `sell` = the rate |
 | `Metals spot` | `gold`, `silver` / `spot` | `gold-api.com` → `goldprice.org` → `stooq.com` | XAU, XAG in USD per troy oz |
 | `PNJ stock` | `stock` / `session`, `session_date` | Vietcap → TCBS → VNDirect → CafeF | Latest HOSE session (see below). During trading hours the latest bar is the session in progress |
-| `PNJ foreign trading` | `stock` / `foreign`, `session_date` | Vietcap price board → VNDirect → CafeF | Foreign investors' buy/sell (see below) |
+| `PNJ foreign trading` | `stock` / `foreign`, `session_date` | Vietcap price board → VNDirect | Foreign investors' buy/sell (see below) |
 
 ## Files
 
@@ -117,7 +117,7 @@ Prices quoted in thousand VND are converted to VND per share.
 
 ### Data corrections
 
-Rows known to be wrong are dropped when the CSV is read (`DATA_CORRECTIONS` in `scripts/fetch_prices.py`), so they vanish from `prices.csv` and `latest.csv` on the next run. So far that covers one row: the 2026-10-03 15:20 CafeF foreign-value row, whose unit had been misread. Gold rows that no longer pass the product filter are dropped the same way. Moving the workflow to a self-hosted runner in Vietnam would unblock them.
+Rows known to be wrong are dropped when the CSV is read (`DATA_CORRECTIONS` in `scripts/fetch_prices.py`), so they vanish from `prices.csv` and `latest.csv` on the next run. So far that covers the 2026-10-03 15:20 CafeF foreign-trading rows: the value unit was misread, and the volumes (22,400 / 67,800) did not match the exchange (foreign buy 4,200,700 shares, checked on a broker app). CafeF is no longer used for foreign trading. Gold rows that no longer pass the product filter are dropped the same way. Moving the workflow to a self-hosted runner in Vietnam would unblock them.
 
 ### Schema changes (backward compatibility)
 
