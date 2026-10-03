@@ -1,20 +1,51 @@
 # pnj-price-feed
 
-A public, machine-readable feed of Vietnamese market prices (domestic gold, international precious metals, VND exchange rates), refreshed hourly by GitHub Actions and published as a CSV file.
+## Tóm tắt (tiếng Việt)
 
-It's built so other tools and AI agents can read it straight from the raw GitHub URL. The schema stays the same over time and contains **only publicly available market data**. It holds no private PNJ data and the repository stores no credentials.
+Feed giá thị trường công khai, tự cập nhật **mỗi giờ** (phút 17) bằng GitHub Actions và xuất ra file CSV để AI agent, Power BI hay script đọc trực tiếp từ link raw GitHub.
+
+**Nội dung**
+- **Giá vàng trong nước:** SJC, PNJ, DOJI, Bảo Tín Minh Châu (`BTMC`), Bảo Tín Mạnh Hải (`BTMH`) và Phú Quý. Lấy vàng miếng và nhẫn 999.9, thêm các dòng "nguyên liệu", "vàng thị trường" và "thương hiệu khác" nếu nguồn có. Giá luôn quy về **VND/lượng**.
+- **Tỷ giá:** Vietcombank (tiền mặt, chuyển khoản) và tỷ giá trung tâm USD/VND của NHNN (`price_type=central`).
+- **Vàng/bạc thế giới:** XAU, XAG (USD/oz).
+- **Cổ phiếu PNJ (HOSE):** ngày phiên, giá mở cửa, cao nhất, thấp nhất, đóng cửa, khối lượng khớp lệnh, khối ngoại mua/bán (`category=stock`).
+
+**Các file**
+
+| File | Dùng để |
+|---|---|
+| `data/latest.csv` | Giá mới nhất, mỗi sản phẩm 1 dòng. **Agent nên đọc file này** |
+| `data/prices.csv` | Lịch sử: chỉ thêm dòng mới khi giá thay đổi |
+| `data/health.csv` | Tình trạng từng nguồn: `ok`, `error` hoặc `blocked_non_vn` (nguồn chặn IP nước ngoài) |
+
+**Quy tắc đọc dữ liệu**
+- Schema 11 cột cố định. `timestamp` là lần đầu thấy mức giá đó; `last_checked` là lần gần nhất nguồn xác nhận giá còn đúng.
+- Dòng có `last_checked` cũ hơn 2 giờ là **dữ liệu cũ**: nguồn đang lỗi, xem `health.csv`.
+- Mỗi nhóm có nhiều nguồn dự phòng; cột `source` ghi nguồn đã trả dữ liệu. Nếu cùng một sản phẩm có dòng từ nhiều nguồn, lấy dòng có `last_checked` mới nhất.
+- **Không bao giờ bịa số.** Nguồn lỗi thì không ghi dòng giá nào, chỉ ghi lỗi vào `health.csv`.
+
+Link: `https://raw.githubusercontent.com/truongnhat/pnj-price-feed/main/data/latest.csv`
+
+---
+
+A public, machine-readable feed of Vietnamese market prices (domestic gold by brand, international precious metals, VND exchange rates, the SBV central rate and PNJ's share price), refreshed hourly by GitHub Actions and published as a CSV file.
+
+It's built so other tools and AI agents can read it straight from the raw GitHub URL. The schema stays the same over time and contains **only publicly available market data**. It holds no private PNJ data (only prices PNJ and others publish on their public sites and public market data), and the repository stores no credentials.
 
 ## Data sources
 
-| source | category | What it is | Endpoint (public, no auth) |
-|---|---|---|---|
-| `SJC` | `gold` | ⏸ **Disabled.** SJC's own site blocks non-Vietnam IPs, so it fails on GitHub-hosted runners. SJC prices come from `vnappmob.com` instead | `sjc.com.vn/GoldPrice/Services/PriceService.ashx` |
-| `vnappmob.com` | `gold` | **SJC** gold prices (bars, rings, jewelry) through a free public API. `item` starts with the brand (`SJC …`). A short-lived token is requested on every run and never stored | `api.vnappmob.com/api/v2/gold/sjc` |
-| `DOJI` | `gold` | ⏸ **Disabled.** vnappmob returns no DOJI data, and DOJI's own feed has a broken TLS certificate chain | `update.giavang.doji.vn/banggia/doji_92411/92411` (XML) |
-| `Vietcombank` | `fx` | VND exchange rates (cash and transfer) | `vietcombank.com.vn/api/exchangerates` (falls back to the legacy XML feed) |
-| `gold-api.com` / `goldprice.org` / `stooq.com` | `gold`, `silver` | International spot prices, XAU and XAG. Providers are tried in this order and the first that works is used; `source` names that provider | `api.gold-api.com`, `data-asg.goldprice.org`, `stooq.com/q/l/` |
+Where several providers are listed, they are tried in order and the **first one that returns data is used**. The `source` column names that provider.
 
-To re-enable a disabled source (for example after moving the workflow to a self-hosted runner in Vietnam), move it from `DISABLED_FETCHERS` to `FETCHERS` in `scripts/fetch_prices.py`.
+| Group (`health.csv` name) | category / price_type | Providers, in order | Notes |
+|---|---|---|---|
+| `SJC (sjc.com.vn)` | `gold` / `retail` | `sjc.com.vn` | Blocks non-Vietnam IPs; shows `blocked_non_vn` on GitHub-hosted runners |
+| `SJC via vnappmob.com` | `gold` / `retail` | `api.vnappmob.com/api/v2/gold/sjc` | Free public API; a short-lived token is requested on each run and never stored |
+| `PNJ gold`, `DOJI gold`, `BTMC gold`, `BTMH gold`, `Phú Quý gold` | `gold` / `retail` | `vnappmob.com` → `giavang.org/trong-nuoc/<brand>/` → brand site (PNJ: `edge-api.pnj.io`, `giavang.pnj.com.vn`; DOJI: XML feed) | 99.99 rings and bars, plus raw-material / market / other-brand lines. `item` always starts with the brand: `PNJ …`, `DOJI …`, `BTMC …`, `BTMH …`, `Phú Quý …` |
+| `Vietcombank` | `fx` / `cash`, `transfer` | `vietcombank.com.vn` JSON → legacy XML | |
+| `SBV central rate` | `fx` / `central` | `sbv.gov.vn` → `webgia.com` → `tygiausd.org` | USD/VND central rate; `buy` = `sell` = the rate |
+| `Metals spot` | `gold`, `silver` / `spot` | `gold-api.com` → `goldprice.org` → `stooq.com` | XAU, XAG in USD per troy oz |
+| `PNJ stock` | `stock` / `session`, `session_date` | TCBS → VNDirect → CafeF | Latest HOSE session (see below) |
+| `PNJ foreign trading` | `stock` / `foreign`, `session_date` | VNDirect → CafeF | Foreign investors' buy/sell (see below) |
 
 ## Files
 
@@ -22,6 +53,7 @@ To re-enable a disabled source (for example after moving the workflow to a self-
 |---|---|
 | `data/prices.csv` | **Price history.** A new row is added only when a price differs from the last recorded row for the same key. If the price is unchanged, only that row's `last_checked` is updated. |
 | `data/latest.csv` | Latest row per key, with the same schema. Use this when you only need current prices. |
+| `data/health.csv` | One row per source (see [health.csv](#healthcsv)). |
 
 ## CSV schema
 
@@ -30,14 +62,14 @@ The files are UTF-8 (no BOM), comma-separated, with `\n` line endings and a head
 | Column | Type | Description | Example |
 |---|---|---|---|
 | `timestamp` | ISO-8601, `+07:00` | Vietnam time of the run that **first observed** this price | `2026-10-03T10:17:05+07:00` |
-| `source` | string | Data provider | `SJC`, `vnappmob.com`, `DOJI`, `Vietcombank`, `gold-api.com`, `goldprice.org`, `stooq.com` |
-| `category` | string | Asset class | `gold`, `silver`, `fx` |
-| `price_type` | string | Kind of quote | `retail` (SJC), `cash` / `transfer` (FX), `spot` (international) |
-| `item` | string | Product or instrument | `Vàng SJC 1L, 10L, 1KG (Hồ Chí Minh)`, `USD`, `XAU` |
+| `source` | string | Data provider | `vnappmob.com`, `giavang.org`, `pnj.com.vn`, `Vietcombank`, `sbv.gov.vn`, `gold-api.com`, `tcbs.com.vn`, `cafef.vn`, … |
+| `category` | string | Asset class | `gold`, `silver`, `fx`, `stock` |
+| `price_type` | string | Kind of quote | `retail` (domestic gold), `cash` / `transfer` / `central` (FX), `spot` (international), `session` / `session_date` / `foreign` (stock) |
+| `item` | string | Product or instrument | `SJC 1L, 10L, 1KG`, `PNJ Nhẫn Trơn PNJ 999.9`, `USD`, `XAU`, `PNJ đóng cửa` |
 | `buy` | decimal or empty | Price the dealer/bank **buys** at (plain number: no thousands separator, `.` as the decimal point) | `119000000` |
 | `sell` | decimal or empty | Price the dealer/bank **sells** at | `121000000` |
-| `currency` | ISO 4217 | Currency of `buy`/`sell` | `VND`, `USD` |
-| `unit` | string | Quantity the price refers to | `luong` (1 lượng = 37.5 g), `1 USD`, `troy_oz` |
+| `currency` | ISO 4217 or empty | Currency of `buy`/`sell`; empty for counts and dates | `VND`, `USD`, `` |
+| `unit` | string | Quantity the price refers to | `luong` (1 lượng = 37.5 g), `1 USD`, `troy_oz`, `1 cp`, `cp`, `yyyymmdd` |
 | `status` | string | `ok` = buy and sell both present; `partial` = only one of them (e.g. a bank does not buy that currency in cash) | `ok` |
 | `last_checked` | ISO-8601, `+07:00` | Vietnam time of the **most recent successful check** of the source that returned this price. Updated on every run where the source responds, even if the price did not change | `2026-10-03T14:17:04+07:00` |
 
@@ -51,7 +83,35 @@ Notes:
   - `last_checked` within roughly the last 2 hours: the source is healthy. If `timestamp` is old, the price simply hasn't changed.
   - `last_checked` older than that: the source was unreachable or failed to parse (or stopped publishing that item), so treat the price as **stale**.
   - Example: `age_hours = (now - last_checked).total_seconds() / 3600; stale = age_hours > 2`.
+- `buy`/`sell` hold a number or are empty. Nothing is ever estimated or filled in: a source that fails writes no rows.
 - New columns will only ever be **appended at the end**. Existing columns will not be renamed or reordered.
+
+### PNJ stock rows (`category=stock`)
+
+The schema has no date column, so the session date is a row of its own.
+
+| item | price_type | buy | sell | currency | unit |
+|---|---|---|---|---|---|
+| `PNJ ngày phiên` | `session_date` | session date as `yyyymmdd`, e.g. `20261002` | same | empty | `yyyymmdd` |
+| `PNJ mở cửa`, `PNJ cao nhất`, `PNJ thấp nhất`, `PNJ đóng cửa` | `session` | price | same | `VND` | `1 cp` (per share) |
+| `PNJ KL khớp lệnh` | `session` | matched volume | same | empty | `cp` (shares) |
+| `PNJ NN ngày phiên` | `session_date` | foreign-trading session date `yyyymmdd` | same | empty | `yyyymmdd` |
+| `PNJ NN KL mua/bán` | `foreign` | foreign **buy** volume | foreign **sell** volume | empty | `cp` |
+| `PNJ NN GT mua/bán` | `foreign` | foreign **buy** value | foreign **sell** value | `VND` | `VND` |
+
+Prices quoted in thousand VND are converted to VND per share. Foreign trading values are converted to VND, whichever unit the provider reports in.
+
+### health.csv
+
+| Column | Description |
+|---|---|
+| `source` | Group name, as in the sources table |
+| `status` | Result of the latest run: `ok`; `error` (failed, see `error_msg`); `blocked_non_vn` (every provider answered HTTP 403/451, which normally means it refuses non-Vietnam IPs such as GitHub's runners) |
+| `last_success` | Vietnam time of the last run where the source returned data |
+| `last_error` | Vietnam time of the last failed run |
+| `error_msg` | Message from that last failure, listing each provider tried (it can be older than `last_success`) |
+
+`blocked_non_vn` sources don't create GitHub Actions warnings; other errors do. Moving the workflow to a self-hosted runner in Vietnam would unblock them.
 
 ### Schema changes (backward compatibility)
 
@@ -64,11 +124,11 @@ Notes:
 
 ```bash
 python -m pip install -r requirements.txt
-python scripts/fetch_prices.py               # updates data/prices.csv and data/latest.csv
+python scripts/fetch_prices.py               # updates data/prices.csv, latest.csv, health.csv
 python -m unittest discover -s tests         # offline tests (no network)
 ```
 
-Exit code is `0` if at least one source succeeded and `1` if every source failed. A source that fails is logged and skipped, and the other sources are still written. Each HTTP call has a 30 s timeout and 3 attempts. Writes are atomic (temp file, then rename), so a failed run never leaves a half-written CSV.
+Exit code is `0` if at least one source succeeded and `1` if every source failed. A source that fails is logged and skipped, and the other sources are still written. Each HTTP call has a 10 s connect and 25 s read timeout and up to 3 attempts. 4xx responses and certificate errors are not retried. Writes are atomic (temp file, then rename), so a failed run never leaves a half-written CSV.
 
 ## How GitHub Actions works
 
@@ -78,7 +138,7 @@ The workflow is `.github/workflows/update_prices.yml`:
 2. Checks out the repository, sets up Python 3.12 and installs `requirements.txt`.
 3. Runs the offline unit tests. If they fail, nothing is fetched or committed.
 4. Runs `scripts/fetch_prices.py`.
-5. Commits `data/prices.csv` and `data/latest.csv` **only if they changed**, then pushes. If the push is rejected, it rebases and retries. Because `last_checked` moves forward on every successful run, expect one small commit per hourly run. If every source fails, the files are unchanged and nothing is committed; the stale `last_checked` values are themselves the signal.
+5. Commits `data/prices.csv`, `data/latest.csv` and `data/health.csv` **only if they changed**, then pushes. If the push is rejected, it rebases and retries. Because `last_checked` moves forward on every successful run, expect one small commit per hourly run. If every source fails, the files are unchanged and nothing is committed; the stale `last_checked` values are themselves the signal.
 
 Permissions and safety:
 - The only permission is `contents: write`, granted to the built-in `GITHUB_TOKEN` so the workflow can push. It needs no secrets or API keys.
@@ -105,7 +165,7 @@ In Power BI, use **Get Data → Web** with the URL above and set the file origin
 
 ## Adding a source
 
-Add a parser (a pure function that turns the payload into rows, with fixture tests in `tests/`) and a fetcher in `scripts/fetch_prices.py`, then register it in `FETCHERS`. Use only public endpoints that need no credentials.
+Add a parser (a pure function that turns the payload into rows, with a fixture in `tests/fixtures/` and a test) and a fetcher in `scripts/fetch_prices.py`, then register it in `FETCHERS`. For several providers of the same data, wrap them with `first_working()`. Use only public endpoints that need no credentials. The fixtures are hand-written samples of each provider's format; replace one with a captured response when you fix a parser after a live run.
 
 ## Disclaimer
 

@@ -1,20 +1,28 @@
 #!/usr/bin/env python3
 """Fetch publicly available market prices and append changes to data/prices.csv.
 
-Sources (all public, no authentication):
-  - SJC          : domestic gold prices (sjc.com.vn; blocks non-Vietnam IPs)
-  - vnappmob.com : SJC and DOJI gold prices via a free public API (short-lived
-                   token is requested at runtime; nothing is stored in the repository)
-  - DOJI         : DOJI's own XML feed, used only if vnappmob has no DOJI prices
-  - Vietcombank  : VND exchange rates (vietcombank.com.vn)
-  - Metals spot  : international spot prices for gold (XAU) and silver (XAG),
-                   first working provider of gold-api.com, goldprice.org, stooq.com
+Sources (all public, no credentials). Where several providers are listed, they
+are tried in order and the first one that works is used; `source` names it.
+  - SJC gold          : sjc.com.vn (blocks non-Vietnam IPs), vnappmob.com
+  - Brand gold        : PNJ, DOJI, BTMC, BTMH, Phu Quy via vnappmob.com ->
+                        giavang.org -> the brand's own site (where one exists)
+  - Vietcombank       : VND exchange rates
+  - SBV central rate  : USD/VND central rate (sbv.gov.vn, then mirrors)
+  - Metals spot       : XAU/XAG via gold-api.com -> goldprice.org -> stooq.com
+  - PNJ stock (HOSE)  : session OHLC + volume via TCBS -> VNDirect -> CafeF;
+                        foreign buy/sell via VNDirect -> CafeF
 
 Output files (UTF-8, no BOM, comma-separated, "\n" line endings):
   - data/prices.csv : price history. A row is appended only when a price
                       differs from the last recorded row for the same key;
                       otherwise only that row's last_checked is refreshed.
   - data/latest.csv : the latest row per key (same schema).
+  - data/health.csv : one row per source: status, last_success, last_error,
+                      error_msg. status=blocked_non_vn when every provider
+                      refused the request (HTTP 403/451).
+
+No number is ever invented: a source that fails writes no price rows, and its
+existing rows simply stop getting a fresh last_checked.
 
 timestamp    = first time this specific price was observed.
 last_checked = most recent successful check of the source that returned it.
@@ -26,14 +34,18 @@ from __future__ import annotations
 
 import csv
 import functools
+import html
 import logging
 import os
+import re
 import sys
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
+from html.parser import HTMLParser
 from pathlib import Path
+from typing import Callable
 
 import requests
 
@@ -62,8 +74,10 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("PRICE_FEED_DATA_DIR", ROOT / "data"))
 PRICES_CSV = DATA_DIR / "prices.csv"
 LATEST_CSV = DATA_DIR / "latest.csv"
+HEALTH_CSV = DATA_DIR / "health.csv"
+HEALTH_COLUMNS = ["source", "status", "last_success", "last_error", "error_msg"]
 
-TIMEOUT = 30
+TIMEOUT = (10, 25)  # connect, read (seconds)
 RETRIES = 3
 HEADERS = {
     "User-Agent": "pnj-price-feed/1.0 (+https://github.com/truongnhat/pnj-price-feed)",
@@ -93,6 +107,25 @@ VNAPPMOB_GOLD_URL = "https://api.vnappmob.com/api/v2/gold/{brand}"
 
 # Plausible domestic gold price range in VND per luong (37.5 g); covers 10K-24K gold.
 GOLD_LUONG_MIN, GOLD_LUONG_MAX = 30_000_000, 1_000_000_000
+
+GIAVANG_ORG_URL = "https://giavang.org/trong-nuoc/{slug}/"
+PNJ_API_URL = "https://edge-api.pnj.io/ecom-frontend/v1/get-gold-price"
+PNJ_HTML_URL = "https://giavang.pnj.com.vn/"
+
+STOCK = "PNJ"
+TCBS_BARS_URL = "https://apipubaws.tcbs.com.vn/stock-insight/v1/stock/bars-long-term"
+VND_STOCK_URL = "https://finfo-api.vndirect.com.vn/v4/stock_prices"
+VND_FOREIGN_URL = "https://finfo-api.vndirect.com.vn/v4/foreigns"
+CAFEF_PRICE_URL = "https://s.cafef.vn/Ajax/PageNew/DataHistory/PriceHistory.ashx"
+CAFEF_FOREIGN_URL = "https://s.cafef.vn/Ajax/PageNew/DataHistory/GDKhoiNgoai.ashx"
+STOCK_PRICE_MIN, STOCK_PRICE_MAX = 1_000, 10_000_000  # VND per share
+
+SBV_CENTRAL_URLS = (
+    ("sbv.gov.vn", "https://www.sbv.gov.vn/TyGia/faces/TyGiaTrungTam.jspx"),
+    ("webgia.com", "https://webgia.com/ty-gia/sbv/"),
+    ("tygiausd.org", "https://tygiausd.org/"),
+)
+CENTRAL_RATE_MIN, CENTRAL_RATE_MAX = 15_000, 50_000  # VND per USD
 
 log = logging.getLogger("fetch_prices")
 
@@ -144,6 +177,10 @@ def make_row(ts, source, category, price_type, item, buy, sell, currency, unit) 
     }
 
 
+class BlockedError(RuntimeError):
+    """The host refused the request (HTTP 403/451): typically it blocks non-Vietnam IPs."""
+
+
 def http(method: str, url: str, session: requests.Session | None = None,
          headers: dict | None = None, **kwargs) -> requests.Response:
     last_error: Exception | None = None
@@ -157,9 +194,12 @@ def http(method: str, url: str, session: requests.Session | None = None,
             last_error = exc
             log.warning("%s %s failed (attempt %d/%d): %s", method, url, attempt, RETRIES, exc)
             status = getattr(exc.response, "status_code", None)
+            if status in (403, 451):
+                raise BlockedError(f"{method} {url}: HTTP {status} "
+                                   "(host refuses this IP, likely non-Vietnam)") from exc
             if (status and 400 <= status < 500 and status != 429) or \
                     isinstance(exc, requests.exceptions.SSLError):
-                break  # 4xx (e.g. 403 geo-block) and bad certificates do not fix themselves
+                break  # other 4xx and bad certificates do not fix themselves
             if attempt < RETRIES:
                 time.sleep(2 * attempt)
     raise RuntimeError(f"{method} {url} failed: {last_error}")
@@ -167,7 +207,179 @@ def http(method: str, url: str, session: requests.Session | None = None,
 
 def snippet(resp: requests.Response) -> str:
     """Start of a response body, for error messages when parsing finds nothing."""
-    return repr(resp.text[:200])
+    return repr(resp.text[:300])
+
+
+def first_working(label: str, providers: list[tuple[str, Callable[[], list[dict]]]]) -> list[dict]:
+    """Return the rows of the first provider that yields any.
+
+    Raises BlockedError when every provider refused us (403/451), so health.csv
+    can say blocked_non_vn; otherwise RuntimeError listing each provider's error.
+    """
+    errors, blocked = [], 0
+    for name, provider in providers:
+        try:
+            rows = provider()
+            if rows:
+                log.info("%s: using %s (%d rows)", label, name, len(rows))
+                return rows
+            errors.append(f"{name}: no rows")
+        except BlockedError as exc:
+            blocked += 1
+            errors.append(f"{name}: {exc}")
+        except Exception as exc:  # noqa: BLE001 - try the next provider
+            errors.append(f"{name}: {exc}")
+        log.warning("%s: provider %s failed: %s", label, name, errors[-1])
+    message = " | ".join(errors) or "no providers"
+    if providers and blocked == len(providers):
+        raise BlockedError(message)
+    raise RuntimeError(message)
+
+
+# --------------------------------------------------------------------------- #
+# Number / HTML / JSON helpers for Vietnamese sources
+# --------------------------------------------------------------------------- #
+NUMBER_TOKEN = re.compile(r"\d+(?:[.,]\d+)*")
+
+
+def parse_number(value, allow_zero: bool = False) -> Decimal | None:
+    """Parse Vietnamese-formatted numbers: '14.200' and '14,200' -> 14200, '98.5' -> 98.5.
+
+    A separator followed only by 3-digit groups is a thousands separator; with
+    both '.' and ',' present the last one is the decimal point.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float, Decimal)):
+        number = Decimal(str(value))
+    else:
+        match = NUMBER_TOKEN.search(str(value).replace("\xa0", " "))
+        if not match:
+            return None
+        token = match.group(0)
+        if "." in token and "," in token:
+            point = max(token.rfind("."), token.rfind(","))
+            token = re.sub(r"[.,]", "", token[:point]) + "." + token[point + 1:]
+        elif "." in token or "," in token:
+            sep = "." if "." in token else ","
+            parts = token.split(sep)
+            if all(len(p) == 3 for p in parts[1:]):
+                token = "".join(parts)
+            elif len(parts) == 2:
+                token = ".".join(parts)
+            else:
+                return None
+        number = Decimal(token)
+    if number > 0 or (allow_zero and number == 0):
+        return number
+    return None
+
+
+def is_number_cell(text: str) -> bool:
+    """A table cell holding a price: starts with a digit (after signs/arrows)."""
+    return bool(re.match(r"^[\s+\-\u2212\u25b2\u25bc]*\d", text or ""))
+
+
+class _TableParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.tables, self._row, self._cell, self._skip = [], None, None, 0
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag in ("script", "style"):
+            self._skip += 1
+        elif tag == "table":
+            self.tables.append([])
+        elif tag == "tr" and self.tables:
+            self._row = []
+            self.tables[-1].append(self._row)
+        elif tag in ("td", "th") and self._row is not None:
+            span = lambda k: int(a.get(k) or 1) if str(a.get(k) or 1).isdigit() else 1  # noqa: E731
+            self._cell = {"text": [], "rowspan": span("rowspan"), "colspan": span("colspan")}
+            self._row.append(self._cell)
+        elif tag == "br" and self._cell is not None:
+            self._cell["text"].append(" ")
+
+    def handle_endtag(self, tag):
+        if tag in ("script", "style"):
+            self._skip = max(0, self._skip - 1)
+        elif tag in ("td", "th"):
+            self._cell = None
+        elif tag == "tr":
+            self._row = None
+
+    def handle_data(self, data):
+        if self._cell is not None and not self._skip:
+            self._cell["text"].append(data)
+
+
+def html_tables(markup: str) -> list[list[list[str]]]:
+    """Every <table> as a grid of cell texts, with rowspan/colspan expanded."""
+    parser = _TableParser()
+    parser.feed(markup)
+    grids = []
+    for table in parser.tables:
+        grid, pending = [], {}  # pending: column -> (text, rows left)
+        for raw in table:
+            row, col, cells = [], 0, list(raw)
+            while cells or col in pending:
+                if col in pending:
+                    text, left = pending[col]
+                    row.append(text)
+                    pending[col] = (text, left - 1)
+                    if left - 1 == 0:
+                        del pending[col]
+                    col += 1
+                    continue
+                cell = cells.pop(0)
+                text = " ".join("".join(cell["text"]).split())
+                for _ in range(cell["colspan"]):
+                    if cell["rowspan"] > 1:
+                        pending[col] = (text, cell["rowspan"] - 1)
+                    row.append(text)
+                    col += 1
+            if any(row):
+                grid.append(row)
+        grids.append(grid)
+    return grids
+
+
+def html_text(markup: str) -> str:
+    text = re.sub(r"(?is)<(script|style).*?</\1>", " ", markup)
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", text)).split())
+
+
+JSON_LABEL_KEYS = ("tensp", "ten", "name", "typename", "loai", "loaivang", "type", "title",
+                   "product", "gold_type", "masp")
+JSON_BUY_KEYS = ("giamua", "gia_mua", "buy", "mua", "buyprice", "buy_price", "purchase")
+JSON_SELL_KEYS = ("giaban", "gia_ban", "sell", "ban", "sellprice", "sell_price")
+
+
+def json_price_pairs(obj, context: tuple = ()) -> list[tuple[str, object, object]]:
+    """Find {name, buy, sell}-shaped records anywhere in a JSON document.
+
+    Names of enclosing records without prices (e.g. a region) are prefixed.
+    """
+    pairs = []
+    if isinstance(obj, list):
+        for value in obj:
+            pairs += json_price_pairs(value, context)
+    elif isinstance(obj, dict):
+        lower = {str(k).lower(): k for k in obj}
+        pick = lambda keys: next((lower[k] for k in keys if k in lower), None)  # noqa: E731
+        label_key, buy_key, sell_key = pick(JSON_LABEL_KEYS), pick(JSON_BUY_KEYS), pick(JSON_SELL_KEYS)
+        label = obj.get(label_key) if label_key else None
+        label = label if isinstance(label, str) and label.strip() else None
+        if label and (buy_key or sell_key):
+            pairs.append((" ".join(context + (label,)),
+                          obj.get(buy_key) if buy_key else None,
+                          obj.get(sell_key) if sell_key else None))
+        child_context = context + (label,) if label and not (buy_key or sell_key) else context
+        for value in obj.values():
+            if isinstance(value, (list, dict)):
+                pairs += json_price_pairs(value, child_context)
+    return pairs
 
 
 # --------------------------------------------------------------------------- #
@@ -215,7 +427,7 @@ def gold_multiplier(values: list[Decimal]) -> int:
 
 def gold_rows(ts: str, source: str, pairs: list[tuple[str, object, object]]) -> list[dict]:
     """Turn (item, buy, sell) pairs from one gold feed into rows in VND per luong."""
-    parsed = [(item, to_number(b), to_number(s)) for item, b, s in pairs if item]
+    parsed = [(item, parse_number(b), parse_number(s)) for item, b, s in pairs if item]
     factor = gold_multiplier([v for _, b, s in parsed for v in (b, s) if v is not None])
     rows, seen = [], set()
     for item, buy, sell in parsed:
@@ -270,8 +482,13 @@ ITEM_RENAMES = {
 
 
 def parse_vnappmob(payload: dict, brand: str, ts: str) -> list[dict]:
-    """{"results": [{"buy_1l": ..., "sell_1l": ..., "buy_nhan1c": ..., "datetime": ...}]}"""
+    """{"results": [{"buy_1l": ..., "sell_1l": ..., "buy_nhan1c": ..., "datetime": ...}]}
+
+    Falls back to {name, buy, sell}-shaped records if there are no buy_/sell_ fields.
+    """
     results = payload.get("results") if isinstance(payload, dict) else None
+    if isinstance(results, dict):
+        results = [results]
     rec = results[0] if isinstance(results, list) and results else None
     if not isinstance(rec, dict):
         raise ValueError(f"vnappmob {brand}: no results")
@@ -279,8 +496,72 @@ def parse_vnappmob(payload: dict, brand: str, ts: str) -> list[dict]:
     codes = sorted({k[4:] for k in rec if k.startswith("buy_")} |
                    {k[5:] for k in rec if k.startswith("sell_")})
     pairs = [(labels.get(c, f"{brand.upper()} {c}"), rec.get(f"buy_{c}"), rec.get(f"sell_{c}"))
-             for c in codes]
+             for c in codes] or json_price_pairs(results)
     return gold_rows(ts, "vnappmob.com", pairs)
+
+
+# Brand feeds also list jewelry, silver, gifts... keep 99.99 rings and bars,
+# plus raw-material / market / other-brand lines (case-insensitive substrings).
+GOLD_KEEP = ("nhẫn", "nhan ", "miếng", "mieng", "9999", "999.9", "99.99", "99,99", "24k",
+             "nguyên liệu", "nguyen lieu", "thị trường", "thi truong", "thương hiệu khác",
+             "thuong hieu khac", "rồng thăng long", "vrtl", "kim gia bảo", "kim bảo",
+             "sjc", "kim thần tài", "thần tài")
+GOLD_DROP = ("bạc", "silver")
+
+
+def keep_gold_label(label: str) -> bool:
+    text = f" {label.lower()} "
+    return any(k in text for k in GOLD_KEEP) and not any(k in text for k in GOLD_DROP)
+
+
+def with_brand(prefix: str, label: str) -> str:
+    """Item names start with the brand: 'Nhẫn trơn 999.9' -> 'PNJ Nhẫn trơn 999.9'."""
+    label = " ".join(label.split())
+    return label if label.lower().startswith(prefix.lower()) else f"{prefix} {label}"
+
+
+def parse_gold_html(markup: str, source: str, ts: str) -> list[dict]:
+    """Gold price tables (giavang.org, brand sites): label cells + Mua/Bán columns.
+
+    Each table is converted on its own, since tables may use different units.
+    """
+    rows, seen = [], set()
+    for grid in html_tables(markup):
+        buy_col = sell_col = None
+        pairs = []
+        for cells in grid:
+            lower = [c.lower() for c in cells]
+            if buy_col is None and any("mua" in c for c in lower) and any("bán" in c for c in lower):
+                buy_col = next(i for i, c in enumerate(lower) if "mua" in c)
+                sell_col = next(i for i, c in enumerate(lower) if "bán" in c)
+                continue
+            numeric = [i for i, c in enumerate(cells) if is_number_cell(c)]
+            if buy_col is not None and max(buy_col, sell_col) < len(cells):
+                b_i, s_i = buy_col, sell_col
+            elif len(numeric) >= 2:
+                b_i, s_i = numeric[0], numeric[1]
+            else:
+                continue
+            label = " ".join(dict.fromkeys(c for i, c in enumerate(cells)
+                                           if c and not is_number_cell(c) and i not in (b_i, s_i)))
+            if label and keep_gold_label(label):
+                pairs.append((label, cells[b_i], cells[s_i]))
+        if not pairs:
+            continue
+        try:
+            table_rows = gold_rows(ts, source, pairs)
+        except ValueError:
+            continue  # not a VND gold table (e.g. world price in USD)
+        for row in table_rows:
+            if row["item"] not in seen:
+                seen.add(row["item"])
+                rows.append(row)
+    return rows
+
+
+def parse_gold_json(payload, source: str, ts: str) -> list[dict]:
+    pairs = [p for p in json_price_pairs(payload) if keep_gold_label(p[0])]
+    return gold_rows(ts, source, pairs) if pairs else []
 
 
 def _vcb_rows(ts: str, code: str, cash, transfer, sell) -> list[dict]:
@@ -345,6 +626,145 @@ def parse_stooq(text: str, symbol: str, ts: str) -> list[dict]:
 
 
 # --------------------------------------------------------------------------- #
+# PNJ stock (HOSE)
+# --------------------------------------------------------------------------- #
+# A session is normalized to {"date": "YYYY-MM-DD", "open", "high", "low",
+# "close", "volume"}; foreign trading to {"date", "buy_vol", "sell_vol",
+# "buy_val", "sell_val"}. Values are as reported; units are fixed in *_rows().
+def _iso_date(text) -> str:
+    text = str(text or "").strip()
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})", text) or re.match(r"(\d{2})/(\d{2})/(\d{4})", text)
+    if not m:
+        raise ValueError(f"unrecognized date {text!r}")
+    y, mo, d = (m.group(1), m.group(2), m.group(3)) if len(m.group(1)) == 4 else \
+        (m.group(3), m.group(2), m.group(1))
+    return f"{y}-{mo}-{d}"
+
+
+def _records(payload, *path) -> list[dict]:
+    for key in path:
+        payload = payload.get(key) if isinstance(payload, dict) else None
+    if not isinstance(payload, list) or not payload or not isinstance(payload[0], dict):
+        raise ValueError(f"no records at {'/'.join(path) or 'root'}")
+    return payload
+
+
+def parse_tcbs_bars(payload: dict) -> dict:
+    """{"ticker": "PNJ", "data": [{"open", "high", "low", "close", "volume", "tradingDate"}]}"""
+    rec = max(_records(payload, "data"), key=lambda r: str(r.get("tradingDate")))
+    return {"date": _iso_date(rec.get("tradingDate")), "open": rec.get("open"),
+            "high": rec.get("high"), "low": rec.get("low"), "close": rec.get("close"),
+            "volume": rec.get("volume")}
+
+
+def parse_vnd_stock(payload: dict) -> dict:
+    """{"data": [{"code", "date", "open", "high", "low", "close", "nmVolume", ...}]} (newest first)"""
+    rec = _records(payload, "data")[0]
+    return {"date": _iso_date(rec.get("date")), "open": rec.get("open"), "high": rec.get("high"),
+            "low": rec.get("low"), "close": rec.get("close"), "volume": rec.get("nmVolume")}
+
+
+def parse_cafef_price(payload: dict) -> dict:
+    """{"Data": {"Data": [{"Ngay": "dd/mm/yyyy", "GiaMoCua", "GiaCaoNhat", "GiaThapNhat",
+    "GiaDongCua", "KhoiLuongKhopLenh", ...}]}} (newest first)"""
+    rec = _records(payload, "Data", "Data")[0]
+    return {"date": _iso_date(rec.get("Ngay")), "open": rec.get("GiaMoCua"),
+            "high": rec.get("GiaCaoNhat"), "low": rec.get("GiaThapNhat"),
+            "close": rec.get("GiaDongCua"), "volume": rec.get("KhoiLuongKhopLenh")}
+
+
+def parse_vnd_foreign(payload: dict) -> dict:
+    """{"data": [{"code", "tradingDate", "buyVol", "sellVol", "buyVal", "sellVal", ...}]}"""
+    rec = _records(payload, "data")[0]
+    return {"date": _iso_date(rec.get("tradingDate")), "buy_vol": rec.get("buyVol"),
+            "sell_vol": rec.get("sellVol"), "buy_val": rec.get("buyVal"),
+            "sell_val": rec.get("sellVal")}
+
+
+def parse_cafef_foreign(payload: dict) -> dict:
+    """{"Data": {"Data": [{"Ngay", "KLMua", "GtMua", "KLBan", "GtBan", ...}]}} (newest first)"""
+    rec = _records(payload, "Data", "Data")[0]
+    return {"date": _iso_date(rec.get("Ngay")), "buy_vol": rec.get("KLMua"),
+            "sell_vol": rec.get("KLBan"), "buy_val": rec.get("GtMua"), "sell_val": rec.get("GtBan")}
+
+
+def _session_date_row(ts, source, item, date: str) -> dict:
+    # The schema has no date column: the session date is a row of its own,
+    # encoded as a yyyymmdd number in buy and sell.
+    value = Decimal(date.replace("-", ""))
+    return make_row(ts, source, "stock", "session_date", item, value, value, "", "yyyymmdd")
+
+
+def stock_session_rows(session: dict, source: str, ts: str) -> list[dict]:
+    """OHLC in VND per share (thousand-VND quotes are scaled) plus matched volume."""
+    rows = [_session_date_row(ts, source, f"{STOCK} ngày phiên", session["date"])]
+    for key, label in (("open", "mở cửa"), ("high", "cao nhất"), ("low", "thấp nhất"),
+                       ("close", "đóng cửa")):
+        price = parse_number(session.get(key))
+        if price is not None and price < STOCK_PRICE_MIN:
+            price *= 1000  # quoted in thousand VND
+        if price is None or not STOCK_PRICE_MIN <= price <= STOCK_PRICE_MAX:
+            raise ValueError(f"{source}: implausible {key} {session.get(key)!r}")
+        price = price.quantize(Decimal(1))
+        rows.append(make_row(ts, source, "stock", "session", f"{STOCK} {label}",
+                             price, price, "VND", "1 cp"))
+    volume = parse_number(session.get("volume"), allow_zero=True)
+    if volume is not None:
+        volume = volume.quantize(Decimal(1))
+        rows.append(make_row(ts, source, "stock", "session", f"{STOCK} KL khớp lệnh",
+                             volume, volume, "", "cp"))
+    return rows
+
+
+def stock_foreign_rows(foreign: dict, source: str, ts: str) -> list[dict]:
+    """Foreign investors: buy/sell volume (shares) and value (VND)."""
+    vols = [parse_number(foreign.get(k), allow_zero=True) for k in ("buy_vol", "sell_vol")]
+    vals = [parse_number(foreign.get(k), allow_zero=True) for k in ("buy_val", "sell_val")]
+    if all(v is None for v in vols):
+        raise ValueError(f"{source}: no foreign volumes")
+    # Values may be reported in VND, thousand, million or billion VND: pick the
+    # power of 1000 that makes value / volume a plausible price per share.
+    ratios = [val / vol for vol, val in zip(vols, vals) if vol and val]
+    factor = 1
+    if ratios:
+        while ratios[0] * factor < STOCK_PRICE_MIN and factor < 10 ** 9:
+            factor *= 1000
+    vals = [v * factor if v is not None else None for v in vals]
+    rows = [_session_date_row(ts, source, f"{STOCK} NN ngày phiên", foreign["date"]),
+            make_row(ts, source, "stock", "foreign", f"{STOCK} NN KL mua/bán",
+                     *[v.quantize(Decimal(1)) if v is not None else None for v in vols], "", "cp")]
+    value_row = make_row(ts, source, "stock", "foreign", f"{STOCK} NN GT mua/bán",
+                         *[v.quantize(Decimal(1)) if v is not None else None for v in vals],
+                         "VND", "VND")
+    return rows + ([value_row] if value_row else [])
+
+
+# --------------------------------------------------------------------------- #
+# SBV central rate
+# --------------------------------------------------------------------------- #
+_NUM = r"(\d{1,3}(?:[.,]\d{3})+|\d{5})"
+CENTRAL_PATTERNS = (
+    re.compile(r"1\s*(?:USD|Đô\s*la\s*Mỹ)\s*=\s*" + _NUM + r"\s*(?:VND|VNĐ|đồng)", re.I),
+    # "... tỷ giá trung tâm ... 25.123", with no ceiling/floor ("trần"/"sàn") in between
+    re.compile(r"trung\s*tâm((?:(?!trần|sàn)[^0-9]){0,160})" + _NUM, re.I),
+)
+
+
+def parse_central_rate(markup: str, source: str, ts: str) -> list[dict]:
+    text = html_text(markup)
+    for pattern in CENTRAL_PATTERNS:
+        for match in pattern.finditer(text):
+            # Other currencies (EUR ~ 27-30k) also fall in the range: require
+            # USD to be named in the match or just after the number.
+            if not re.search(r"USD|đô\s*la\s*mỹ", text[match.start():match.end() + 40], re.I):
+                continue
+            rate = parse_number(match.groups()[-1])
+            if rate is not None and CENTRAL_RATE_MIN <= rate <= CENTRAL_RATE_MAX:
+                return [make_row(ts, source, "fx", "central", "USD", rate, rate, "VND", "1 USD")]
+    return []
+
+
+# --------------------------------------------------------------------------- #
 # Fetchers
 # --------------------------------------------------------------------------- #
 def fetch_sjc(ts: str) -> list[dict]:
@@ -377,14 +797,25 @@ def fetch_doji_direct(ts: str) -> list[dict]:
     raise RuntimeError(" | ".join(errors))
 
 
-@functools.lru_cache(maxsize=1)
+_vnappmob_token: dict = {}
+
+
 def vnappmob_token() -> str:
     # The API hands out a free, short-lived token on request; it is kept in
-    # memory for this run only and never stored or logged.
-    key = http("GET", VNAPPMOB_KEY_URL, params={"scope": "gold"}).json().get("results")
-    if not key:
-        raise ValueError("vnappmob: no token returned")
-    return key
+    # memory for this run only and never stored or logged. A failure is
+    # remembered too, so six gold sources do not each retry a dead endpoint.
+    if "error" in _vnappmob_token:
+        raise _vnappmob_token["error"]
+    if "key" not in _vnappmob_token:
+        try:
+            key = http("GET", VNAPPMOB_KEY_URL, params={"scope": "gold"}).json().get("results")
+            if not key:
+                raise ValueError("vnappmob: no token returned")
+            _vnappmob_token["key"] = key
+        except Exception as exc:
+            _vnappmob_token["error"] = exc
+            raise
+    return _vnappmob_token["key"]
 
 
 def fetch_vnappmob(brand: str, ts: str) -> list[dict]:
@@ -400,13 +831,54 @@ def fetch_vnappmob_sjc(ts: str) -> list[dict]:
     return fetch_vnappmob("sjc", ts)
 
 
-def fetch_doji(ts: str) -> list[dict]:
-    """DOJI via vnappmob; DOJI's own feed (broken TLS chain at times) as fallback."""
-    try:
-        return fetch_vnappmob("doji", ts)
-    except Exception as exc:  # noqa: BLE001 - fall back to the direct feed
-        log.warning("vnappmob DOJI failed (%s), trying DOJI's own feed", exc)
-        return fetch_doji_direct(ts)
+HTML_HEADERS = {**BROWSER_HEADERS, "Accept": "text/html,application/xhtml+xml,*/*;q=0.8"}
+
+
+def fetch_giavang_org(slug: str, ts: str) -> list[dict]:
+    resp = http("GET", GIAVANG_ORG_URL.format(slug=slug), headers=HTML_HEADERS)
+    rows = parse_gold_html(resp.text, "giavang.org", ts)
+    if not rows:
+        raise ValueError(f"giavang.org/{slug}: no gold table, body {snippet(resp)}")
+    return rows
+
+
+def fetch_pnj_api(ts: str) -> list[dict]:
+    resp = http("GET", PNJ_API_URL, headers=BROWSER_HEADERS, params={"zone": "00"})
+    rows = parse_gold_json(resp.json(), "pnj.com.vn", ts)
+    if not rows:
+        raise ValueError(f"PNJ API: no prices, body {snippet(resp)}")
+    return rows
+
+
+def fetch_pnj_html(ts: str) -> list[dict]:
+    resp = http("GET", PNJ_HTML_URL, headers=HTML_HEADERS)
+    rows = parse_gold_html(resp.text, "pnj.com.vn", ts)
+    if not rows:
+        raise ValueError(f"giavang.pnj.com.vn: no gold table, body {snippet(resp)}")
+    return rows
+
+
+# brand -> (item prefix, vnappmob code, giavang.org slug, official providers)
+GOLD_BRANDS = {
+    "PNJ": ("PNJ", "pnj", "pnj",
+            [("pnj.com.vn API", fetch_pnj_api), ("giavang.pnj.com.vn", fetch_pnj_html)]),
+    "DOJI": ("DOJI", "doji", "doji", [("DOJI XML", fetch_doji_direct)]),
+    "BTMC": ("BTMC", "btmc", "bao-tin-minh-chau", []),
+    "BTMH": ("BTMH", "btmh", "bao-tin-manh-hai", []),
+    "Phú Quý": ("Phú Quý", "phuquy", "phu-quy", []),
+}
+
+
+def fetch_brand_gold(brand: str, ts: str) -> list[dict]:
+    """vnappmob -> giavang.org -> brand site; item names always start with the brand."""
+    prefix, code, slug, official = GOLD_BRANDS[brand]
+    providers = [("vnappmob.com", lambda: fetch_vnappmob(code, ts)),
+                 ("giavang.org", lambda: fetch_giavang_org(slug, ts))]
+    providers += [(name, functools.partial(fn, ts)) for name, fn in official]
+    rows = first_working(f"{brand} gold", providers)
+    for row in rows:
+        row["item"] = with_brand(prefix, row["item"])
+    return rows
 
 
 def fetch_vietcombank(ts: str) -> list[dict]:
@@ -442,27 +914,63 @@ METAL_PROVIDERS = (_gold_api, _goldprice_org, _stooq)
 
 def fetch_metals(ts: str) -> list[dict]:
     """Return XAU/XAG from the first provider that works; `source` names that provider."""
-    errors = []
-    for provider in METAL_PROVIDERS:
-        try:
-            return provider(ts)
-        except Exception as exc:  # noqa: BLE001 - try the next provider
-            log.warning("Metals provider %s failed: %s", provider.__name__.lstrip("_"), exc)
-            errors.append(f"{provider.__name__.lstrip('_')}: {exc}")
-    raise RuntimeError("all metals providers failed: " + " | ".join(errors))
+    return first_working("Metals spot", [(p.__name__.lstrip("_"), functools.partial(p, ts))
+                                         for p in METAL_PROVIDERS])
 
 
+def fetch_central_rate(ts: str) -> list[dict]:
+    def provider(source, url):
+        def run():
+            resp = http("GET", url, headers=HTML_HEADERS)
+            rows = parse_central_rate(resp.text, source, ts)
+            if not rows:
+                raise ValueError(f"no central rate found, body {snippet(resp)}")
+            return rows
+        return run
+    return first_working("SBV central rate", [(s, provider(s, u)) for s, u in SBV_CENTRAL_URLS])
+
+
+def _json(url: str, **params):
+    return http("GET", url, headers=BROWSER_HEADERS, params=params).json()
+
+
+def fetch_pnj_stock(ts: str) -> list[dict]:
+    now = int(time.time())
+    providers = [
+        ("tcbs.com.vn", lambda: parse_tcbs_bars(_json(
+            TCBS_BARS_URL, ticker=STOCK, type="stock", resolution="D",
+            **{"from": now - 15 * 86400, "to": now}))),
+        ("vndirect.com.vn", lambda: parse_vnd_stock(_json(
+            VND_STOCK_URL, q=f"code:{STOCK}", sort="date", size=1))),
+        ("cafef.vn", lambda: parse_cafef_price(_json(
+            CAFEF_PRICE_URL, Symbol=STOCK, StartDate="", EndDate="", PageIndex=1, PageSize=1))),
+    ]
+    return first_working("PNJ stock", [
+        (source, lambda s=source, f=fn: stock_session_rows(f(), s, ts)) for source, fn in providers])
+
+
+def fetch_pnj_foreign(ts: str) -> list[dict]:
+    providers = [
+        ("vndirect.com.vn", lambda: parse_vnd_foreign(_json(
+            VND_FOREIGN_URL, q=f"code:{STOCK}", sort="tradingDate", size=1))),
+        ("cafef.vn", lambda: parse_cafef_foreign(_json(
+            CAFEF_FOREIGN_URL, Symbol=STOCK, StartDate="", EndDate="", PageIndex=1, PageSize=1))),
+    ]
+    return first_working("PNJ foreign", [
+        (source, lambda s=source, f=fn: stock_foreign_rows(f(), s, ts)) for source, fn in providers])
+
+
+# Every source gets one row in health.csv. Sources that refuse non-Vietnam IPs
+# stay listed so health.csv shows blocked_non_vn instead of hiding them.
 FETCHERS = {
+    "SJC (sjc.com.vn)": fetch_sjc,
     "SJC via vnappmob.com": fetch_vnappmob_sjc,
+    **{f"{brand} gold": functools.partial(fetch_brand_gold, brand) for brand in GOLD_BRANDS},
     "Vietcombank": fetch_vietcombank,
+    "SBV central rate": fetch_central_rate,
     "Metals spot": fetch_metals,
-}
-
-# Not run: they fail on every GitHub-hosted run. Move back into FETCHERS when
-# the workflow runs from a Vietnam IP (self-hosted runner) or the sources change.
-DISABLED_FETCHERS = {
-    "SJC": fetch_sjc,    # sjc.com.vn answers 403 to non-Vietnam IPs
-    "DOJI": fetch_doji,  # vnappmob has no DOJI data; DOJI's own feed has a broken TLS chain
+    "PNJ stock": fetch_pnj_stock,
+    "PNJ foreign trading": fetch_pnj_foreign,
 }
 
 
@@ -529,25 +1037,65 @@ def latest_rows(history: list[dict]) -> list[dict]:
     return sorted(latest.values(), key=key_of)
 
 
+def read_health(path: Path) -> dict[str, dict]:
+    if not path.exists() or path.stat().st_size == 0:
+        return {}
+    with path.open("r", encoding="utf-8-sig", newline="") as fh:
+        return {r["source"]: r for r in csv.DictReader(fh) if r.get("source")}
+
+
+def write_health(path: Path, health: dict[str, dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with tmp.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=HEALTH_COLUMNS, lineterminator="\n",
+                                extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(health[name] for name in FETCHERS if name in health)
+    tmp.replace(path)
+
+
+def update_health(previous: dict | None, name: str, ts: str, error: Exception | None) -> dict:
+    """ok -> refresh last_success; failure -> refresh last_error and error_msg."""
+    row = {c: "" for c in HEALTH_COLUMNS} | (previous or {}) | {"source": name}
+    if error is None:
+        row["status"], row["last_success"] = "ok", ts
+    else:
+        row["status"] = "blocked_non_vn" if isinstance(error, BlockedError) else "error"
+        row["last_error"] = ts
+        row["error_msg"] = " ".join(str(error).split())[:500]
+    return row
+
+
 # --------------------------------------------------------------------------- #
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     ts = now_vn()
     collected: list[dict] = []
     failed: list[str] = []
+    previous_health = read_health(HEALTH_CSV)
+    health = {}
 
     for name, fetcher in FETCHERS.items():
+        error = None
         try:
             rows = fetcher(ts)
             if not rows:
                 raise ValueError("no prices parsed")
             log.info("%s: %d rows", name, len(rows))
             collected += rows
+        except BlockedError as exc:
+            error = exc
+            failed.append(name)
+            # Expected from GitHub-hosted runners; recorded in health.csv, no annotation.
+            log.warning("%s: blocked: %s", name, exc)
         except Exception as exc:  # noqa: BLE001 - one bad source must not stop the others
+            error = exc
             failed.append(name)
             log.error("%s: %s", name, exc)
             # GitHub Actions annotation, visible in the run summary
             print(f"::warning title=Source failed::{name}: {exc}")
+        health[name] = update_health(previous_health.get(name), name, ts, error)
 
     # De-duplicate within this run (keep first occurrence of each key)
     seen, unique = set(), []
@@ -559,6 +1107,7 @@ def main() -> int:
     history, added = merge(read_csv(PRICES_CSV), unique)
     write_csv(PRICES_CSV, history)
     write_csv(LATEST_CSV, latest_rows(history))
+    write_health(HEALTH_CSV, health)
     log.info("Appended %d changed rows, refreshed last_checked for %d (%d total). "
              "Failed sources: %s", added, len(unique) - added, len(history),
              ", ".join(failed) or "none")

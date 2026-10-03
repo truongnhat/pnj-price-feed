@@ -17,7 +17,7 @@ TS = "2026-10-03T10:17:05+07:00"
 
 
 def run_main() -> int:
-    """Run run_main() without its ::warning:: lines reaching the real Actions log."""
+    """Run fp.main() without its ::warning:: lines reaching the real Actions log."""
     with contextlib.redirect_stdout(io.StringIO()), mock.patch.object(fp.logging, "basicConfig"):
         return fp.main()
 
@@ -212,7 +212,8 @@ class CsvTests(unittest.TestCase):
             prices, latest = Path(d) / "prices.csv", Path(d) / "latest.csv"
             with mock.patch.object(fp, "FETCHERS", fake), \
                  mock.patch.object(fp, "PRICES_CSV", prices), \
-                 mock.patch.object(fp, "LATEST_CSV", latest):
+                 mock.patch.object(fp, "LATEST_CSV", latest), \
+                 mock.patch.object(fp, "HEALTH_CSV", Path(d) / "health.csv"):
                 with mock.patch.object(fp, "now_vn", return_value=t1):
                     self.assertEqual(run_main(), 0)
                 first = prices.read_bytes()
@@ -256,7 +257,8 @@ class CsvTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d, \
              mock.patch.object(fp, "FETCHERS", {"a": boom, "b": boom}), \
              mock.patch.object(fp, "PRICES_CSV", Path(d) / "p.csv"), \
-             mock.patch.object(fp, "LATEST_CSV", Path(d) / "l.csv"):
+             mock.patch.object(fp, "LATEST_CSV", Path(d) / "l.csv"), \
+             mock.patch.object(fp, "HEALTH_CSV", Path(d) / "h.csv"):
             self.assertEqual(run_main(), 1)
 
     def test_header_mismatch_is_rejected(self):

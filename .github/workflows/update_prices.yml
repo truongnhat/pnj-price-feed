@@ -19,7 +19,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -42,11 +42,14 @@ jobs:
       - name: Fetch prices
         run: python scripts/fetch_prices.py
 
+      # Runs even when the fetch step fails (every source down), so health.csv
+      # still records the failures. If the tests failed, no files changed.
       - name: Commit and push if changed
+        if: ${{ !cancelled() }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/prices.csv data/latest.csv
+          git add data/prices.csv data/latest.csv data/health.csv
           if git diff --cached --quiet; then
             echo "No price changes."
             exit 0
