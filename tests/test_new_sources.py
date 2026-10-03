@@ -215,6 +215,18 @@ class CentralRateTests(unittest.TestCase):
         (row,) = fp.parse_central_rate("<p>Central exchange rate USD/VND</p><p>25,118.00</p>", "x", TS)
         self.assertEqual(row["buy"], "25118")
 
+    def test_date_between_label_and_rate(self):
+        page = "<div>Tỷ giá trung tâm (áp dụng 03/10/2026 08:30)</div><div>USD/VND 25.118</div>"
+        (row,) = fp.parse_central_rate(page, "x", TS)
+        self.assertEqual(row["buy"], "25118")
+        page = "<div>Tỷ giá trung tâm 03/10/2026</div><div>Tỷ giá trần USD 26.374</div>"
+        self.assertEqual(fp.parse_central_rate(page, "x", TS), [])  # stops at "trần"
+
+    def test_failure_context_shows_text_near_label(self):
+        page = "<html><nav>Menu</nav><p>Tỷ giá trung tâm</p><script>load()</script></html>"
+        self.assertIn("Tỷ giá trung tâm", fp.central_rate_context(page))
+        self.assertEqual(fp.central_rate_context("<p>none</p>"), "label not in page text")
+
     def test_no_rate_found(self):
         self.assertEqual(fp.parse_central_rate("<p>Tỷ giá trung tâm: đang cập nhật</p>", "x", TS), [])
 

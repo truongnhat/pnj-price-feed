@@ -495,6 +495,10 @@ DATA_CORRECTIONS = {
     # value / volume = ~7,100 VND per share vs a ~70,000+ VND share price:
     # CafeF's value unit was misread. Values are now checked against the close.
     ("cafef.vn", "PNJ NN GT mua/bán", "2026-10-03T15:20:06+07:00"),
+    # CafeF foreign volumes for the 2026-10-02 session (22,400 / 67,800) do not
+    # match the exchange (foreign buy 4,200,700 shares, confirmed on a broker app).
+    ("cafef.vn", "PNJ NN KL mua/bán", "2026-10-03T15:20:06+07:00"),
+    ("cafef.vn", "PNJ NN ngày phiên", "2026-10-03T15:20:06+07:00"),
 }
 
 # One-time renames of item names already written to the CSV, applied on read
@@ -852,12 +856,21 @@ def stock_foreign_rows(foreign: dict, source: str, ts: str, close: Decimal | Non
 # SBV central rate
 # --------------------------------------------------------------------------- #
 _NUM = r"(\d{1,3}(?:[.,]\d{3})+|\d{5})"
+# Between the label and the number: no digits except a date or time ("03/10/2026", "08:30").
+_GAP = r"((?:(?!trần|sàn|ceiling|floor)(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{1,2}:\d{2}|[^0-9])){0,160})"
 CENTRAL_PATTERNS = (
     re.compile(r"1\s*(?:USD|Đô\s*la\s*Mỹ)\s*=\s*" + _NUM + r"\s*(?:VND|VNĐ|đồng)", re.I),
     # "... tỷ giá trung tâm ... 25.123", with no ceiling/floor ("trần"/"sàn") in between
-    re.compile(r"trung\s*tâm((?:(?!trần|sàn)[^0-9]){0,160})" + _NUM, re.I),
-    re.compile(r"central\s*(?:exchange\s*)?rate((?:(?!ceiling|floor)[^0-9]){0,160})" + _NUM, re.I),
+    re.compile(r"trung\s*tâm" + _GAP + _NUM, re.I),
+    re.compile(r"central\s*(?:exchange\s*)?rate" + _GAP + _NUM, re.I),
 )
+
+
+def central_rate_context(markup: str) -> str:
+    """Text around each 'trung tâm' / 'central rate' mention, for error messages."""
+    text = html_text(markup)
+    spots = [m.start() for m in re.finditer(r"trung\s*tâm|central\s*(?:exchange\s*)?rate", text, re.I)]
+    return " || ".join(text[max(0, i - 40):i + 160] for i in spots[:3]) or "label not in page text"
 
 
 def parse_central_rate(markup: str, source: str, ts: str) -> list[dict]:
@@ -1034,7 +1047,7 @@ def fetch_central_rate(ts: str) -> list[dict]:
             resp = http("GET", url, headers=HTML_HEADERS)
             rows = parse_central_rate(resp.text, source, ts)
             if not rows:
-                raise ValueError(f"no central rate found, body {snippet(resp)}")
+                raise ValueError(f"no central rate found; page text: {central_rate_context(resp.text)!r}")
             return rows
         return run
     return first_working("SBV central rate", [(s, provider(s, u)) for s, u in SBV_CENTRAL_URLS])
@@ -1077,8 +1090,9 @@ def fetch_pnj_foreign(ts: str) -> list[dict]:
         ("vietcap.com.vn", lambda: parse_vci_board_foreign(_vci_post(VCI_BOARD_URL, {"symbols": [STOCK]}))),
         ("vndirect.com.vn", lambda: parse_vnd_foreign(_json(
             VND_FOREIGN_URL, q=f"code:{STOCK}", sort="tradingDate", size=1))),
-        ("cafef.vn", lambda: parse_cafef_foreign(_json(
-            CAFEF_FOREIGN_URL, Symbol=STOCK, StartDate="", EndDate="", PageIndex=1, PageSize=1))),
+        # CafeF's GDKhoiNgoai is not used: on 2026-10-03 it returned foreign
+        # volumes ~190x below the exchange's figures. parse_cafef_foreign stays
+        # for reference/tests only.
     ]
     return first_working("PNJ foreign", [
         (source, lambda s=source, f=fn: stock_foreign_rows(f(), s, ts, _session_close.get("close")))
