@@ -77,6 +77,53 @@ class ParserTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             fp.parse_gold_api({}, "XAG", TS)
 
+    def test_doji_xml_thousand_vnd_per_chi(self):
+        xml = """<?xml version="1.0" encoding="utf-8"?><GoldList>
+        <DGPlist><DateTime>14:40 03/10/2026</DateTime>
+        <Row Name="DOJI HN lẻ" Key="dojihanoile" Sell="14,300" Buy="14,100" />
+        <Row Name="DOJI HCM lẻ" Key="dojihcmle" Sell="14,300" Buy="14,100" /></DGPlist>
+        <JewelryList><Row Name="Nữ trang 18K" Key="18k" Sell="10,500" Buy="9,900" />
+        <Row Name="DOJI HN lẻ" Key="dup" Sell="1" Buy="1" />
+        <Row Name="Bạc" Key="bac" Sell="150" Buy="140" /></JewelryList></GoldList>"""
+        rows = fp.parse_doji_xml(xml.encode("utf-8"), TS)
+        got = {r["item"]: (r["buy"], r["sell"]) for r in rows}
+        self.assertEqual(got, {"DOJI HN lẻ": ("141000000", "143000000"),
+                               "DOJI HCM lẻ": ("141000000", "143000000"),
+                               "Nữ trang 18K": ("99000000", "105000000")})
+        self.assertTrue(all(r["source"] == "DOJI" and r["unit"] == "luong" for r in rows))
+
+    def test_gold_multiplier_units(self):
+        for top in ("143000000", "14300000", "143000", "14300"):
+            self.assertEqual(fp.to_number(top) * fp.gold_multiplier([fp.to_number(top)]),
+                             143000000)
+        with self.assertRaises(ValueError):
+            fp.gold_multiplier([fp.to_number("2650")])  # USD/oz is not VND/luong
+        with self.assertRaises(ValueError):
+            fp.gold_multiplier([])
+
+    def test_vnappmob_sjc(self):
+        payload = {"results": [{"buy_1l": 141000000.0, "sell_1l": 143000000.0,
+                                "buy_nhan1c": 139500000.0, "sell_nhan1c": 142500000.0,
+                                "buy_xyz": 140000000.0, "datetime": "1759477200"}]}
+        rows = fp.parse_vnappmob_sjc(payload, TS)
+        got = {r["item"]: (r["buy"], r["sell"], r["status"]) for r in rows}
+        self.assertEqual(got, {"SJC 1L, 10L, 1KG": ("141000000", "143000000", "ok"),
+                               "SJC nhẫn 99,99% 1-5 chỉ": ("139500000", "142500000", "ok"),
+                               "SJC xyz": ("140000000", "", "partial")})
+        self.assertTrue(all(r["source"] == "vnappmob.com" for r in rows))
+        with self.assertRaises(ValueError):
+            fp.parse_vnappmob_sjc({"results": []}, TS)
+
+    def test_http_does_not_retry_403(self):
+        resp = mock.Mock(status_code=403)
+        err = fp.requests.HTTPError("403 Forbidden", response=resp)
+        resp.raise_for_status.side_effect = err
+        with mock.patch.object(fp.requests, "request", return_value=resp) as req, \
+             mock.patch.object(fp.time, "sleep"), mock.patch.object(fp.log, "warning"):
+            with self.assertRaises(RuntimeError):
+                fp.http("GET", "https://example.invalid")
+        self.assertEqual(req.call_count, 1)
+
     def test_goldprice_org(self):
         rows = fp.parse_goldprice_org(
             {"items": [{"curr": "USD", "xauPrice": 2650.1, "xagPrice": 31.234}]}, TS)
