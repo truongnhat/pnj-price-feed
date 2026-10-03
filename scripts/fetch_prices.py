@@ -852,12 +852,21 @@ def stock_foreign_rows(foreign: dict, source: str, ts: str, close: Decimal | Non
 # SBV central rate
 # --------------------------------------------------------------------------- #
 _NUM = r"(\d{1,3}(?:[.,]\d{3})+|\d{5})"
+# Between the label and the number: no digits except a date or time ("03/10/2026", "08:30").
+_GAP = r"((?:(?!trần|sàn|ceiling|floor)(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{1,2}:\d{2}|[^0-9])){0,160})"
 CENTRAL_PATTERNS = (
     re.compile(r"1\s*(?:USD|Đô\s*la\s*Mỹ)\s*=\s*" + _NUM + r"\s*(?:VND|VNĐ|đồng)", re.I),
     # "... tỷ giá trung tâm ... 25.123", with no ceiling/floor ("trần"/"sàn") in between
-    re.compile(r"trung\s*tâm((?:(?!trần|sàn)[^0-9]){0,160})" + _NUM, re.I),
-    re.compile(r"central\s*(?:exchange\s*)?rate((?:(?!ceiling|floor)[^0-9]){0,160})" + _NUM, re.I),
+    re.compile(r"trung\s*tâm" + _GAP + _NUM, re.I),
+    re.compile(r"central\s*(?:exchange\s*)?rate" + _GAP + _NUM, re.I),
 )
+
+
+def central_rate_context(markup: str) -> str:
+    """Text around each 'trung tâm' / 'central rate' mention, for error messages."""
+    text = html_text(markup)
+    spots = [m.start() for m in re.finditer(r"trung\s*tâm|central\s*(?:exchange\s*)?rate", text, re.I)]
+    return " || ".join(text[max(0, i - 40):i + 160] for i in spots[:3]) or "label not in page text"
 
 
 def parse_central_rate(markup: str, source: str, ts: str) -> list[dict]:
@@ -1034,7 +1043,7 @@ def fetch_central_rate(ts: str) -> list[dict]:
             resp = http("GET", url, headers=HTML_HEADERS)
             rows = parse_central_rate(resp.text, source, ts)
             if not rows:
-                raise ValueError(f"no central rate found, body {snippet(resp)}")
+                raise ValueError(f"no central rate found; page text: {central_rate_context(resp.text)!r}")
             return rows
         return run
     return first_working("SBV central rate", [(s, provider(s, u)) for s, u in SBV_CENTRAL_URLS])
