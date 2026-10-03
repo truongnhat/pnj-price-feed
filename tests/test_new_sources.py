@@ -142,13 +142,55 @@ class StockTests(unittest.TestCase):
                     "PNJ NN GT mua/bán": ("20685000000", "30042500000")}
         for parser, name in ((fp.parse_vnd_foreign, "vnd_foreign.json"),
                              (fp.parse_cafef_foreign, "cafef_foreign.json")):  # VND vs million VND
-            rows = fp.stock_foreign_rows(parser(fixture(name)), "x", TS)
+            rows = fp.stock_foreign_rows(parser(fixture(name)), "x", TS, close=fp.Decimal(98500))
             self.assertEqual(by_item(rows), expected, name)
 
     def test_foreign_zero_sell_volume_is_kept(self):
         rows = fp.stock_foreign_rows({"date": "2026-10-02", "buy_vol": 1000, "sell_vol": 0,
-                                      "buy_val": 98500000, "sell_val": 0}, "x", TS)
+                                      "buy_val": 98500000, "sell_val": 0}, "x", TS,
+                                     close=fp.Decimal(98500))
         self.assertEqual(by_item(rows)["PNJ NN KL mua/bán"], ("1000", "0"))
+        self.assertEqual(by_item(rows)["PNJ NN GT mua/bán"], ("98500000", "0"))
+
+    def test_foreign_values_need_a_consistent_close(self):
+        # The live CafeF case: value / volume = 7,102 VND per share. No unit of
+        # 1/1e3/1e6/1e9 makes that ~98,500, so the value row is left out.
+        bad = {"date": "2026-10-02", "buy_vol": 22400, "sell_vol": 67800,
+               "buy_val": 159.096, "sell_val": 483.344}
+        with mock.patch.object(fp.log, "warning") as warn:
+            rows = fp.stock_foreign_rows(bad, "cafef.vn", TS, close=fp.Decimal(98500))
+        self.assertNotIn("PNJ NN GT mua/bán", by_item(rows))
+        self.assertEqual(by_item(rows)["PNJ NN KL mua/bán"], ("22400", "67800"))
+        warn.assert_called_once()
+        good = dict(bad, buy_val=2206.4, sell_val=6678.3)  # million VND, ~98,500 per share
+        with mock.patch.object(fp.log, "warning"):
+            self.assertNotIn("PNJ NN GT mua/bán", by_item(fp.stock_foreign_rows(good, "x", TS)))
+        rows = fp.stock_foreign_rows(good, "x", TS, close=fp.Decimal(98500))
+        self.assertEqual(by_item(rows)["PNJ NN GT mua/bán"], ("2206400000", "6678300000"))
+
+    def test_vietcap_chart(self):
+        session = fp.parse_ohlc_arrays(fixture("vci_chart.json"))
+        self.assertEqual(session["date"], "2026-10-02")  # 1790874000 = 2026-10-02 00:00 +07:00
+        self.assertEqual(by_item(fp.stock_session_rows(session, "vietcap.com.vn", TS)), self.EXPECTED)
+        with self.assertRaises(ValueError):
+            fp.parse_ohlc_arrays({"data": []})
+
+    def test_vietcap_board_foreign(self):
+        foreign = fp.parse_vci_board_foreign(fixture("vci_board.json"))
+        self.assertEqual((foreign["buy_vol"], foreign["sell_vol"], foreign["buy_val"], foreign["date"]),
+                         (210000, 305000, 20685000000, None))
+        rows = fp.stock_foreign_rows(foreign, "vietcap.com.vn", TS, close=fp.Decimal(98500))
+        self.assertEqual(by_item(rows), {"PNJ NN KL mua/bán": ("210000", "305000"),
+                                         "PNJ NN GT mua/bán": ("20685000000", "30042500000")})
+        with self.assertRaises(ValueError) as ctx:
+            fp.parse_vci_board_foreign([{"matchPrice": {"matchPrice": 1}}])
+        self.assertIn("matchPrice", str(ctx.exception))  # lists available fields
+
+    def test_stock_chain_records_close_for_foreign_check(self):
+        with mock.patch.dict(fp._session_close, clear=True), \
+             mock.patch.object(fp, "_vci_post", return_value=fixture("vci_chart.json")):
+            fp.fetch_pnj_stock(TS)
+            self.assertEqual(fp._session_close["close"], 98500)
 
 
 class CentralRateTests(unittest.TestCase):
@@ -166,6 +208,12 @@ class CentralRateTests(unittest.TestCase):
         (row,) = fp.parse_central_rate(page, "x", TS)
         self.assertEqual(row["buy"], "25118")
         self.assertEqual(fp.parse_central_rate("<p>Tỷ giá trung tâm EUR: 27.950</p>", "x", TS), [])
+
+    def test_sbv_home_page_and_english(self):
+        (row,) = fp.parse_central_rate(fixture("sbv_home.html"), "sbv.gov.vn", TS)
+        self.assertEqual(row["buy"], "25118")
+        (row,) = fp.parse_central_rate("<p>Central exchange rate USD/VND</p><p>25,118.00</p>", "x", TS)
+        self.assertEqual(row["buy"], "25118")
 
     def test_no_rate_found(self):
         self.assertEqual(fp.parse_central_rate("<p>Tỷ giá trung tâm: đang cập nhật</p>", "x", TS), [])
@@ -230,6 +278,30 @@ class HealthTests(unittest.TestCase):
     def test_committed_health_header(self):
         header = (FIXTURES.parent.parent / "data" / "health.csv").read_text(encoding="utf-8")
         self.assertEqual(header.splitlines()[0], ",".join(fp.HEALTH_COLUMNS))
+
+    def test_connect_timeout_marks_host_dead_for_the_run(self):
+        err = fp.requests.exceptions.ConnectTimeout("timed out")
+        with mock.patch.object(fp, "_dead_hosts", set()), \
+             mock.patch.object(fp.requests, "request", side_effect=err) as req:
+            for path in ("/a", "/b"):
+                with self.assertRaises(RuntimeError):
+                    fp.http("GET", "https://slow.example" + path)
+        self.assertEqual(req.call_count, 1)
+
+    def test_read_csv_applies_gold_filter_and_corrections(self):
+        header = ",".join(fp.COLUMNS)
+        lines = [
+            f"{TS},giavang.org,gold,retail,BTMC Quà Mừng Vàng 999.9,132600000,,VND,luong,partial,{TS}",
+            f"{TS},giavang.org,gold,retail,BTMC VRTL Vàng miếng 999.9,139500000,143500000,VND,luong,ok,{TS}",
+            "2026-10-03T15:20:06+07:00,cafef.vn,stock,foreign,PNJ NN GT mua/bán,159096000,483344000,"
+            f"VND,VND,ok,{TS}",
+            f"{TS},cafef.vn,stock,foreign,PNJ NN KL mua/bán,22400,67800,,cp,ok,{TS}",
+        ]
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "p.csv"
+            path.write_text("\n".join([header] + lines) + "\n", encoding="utf-8")
+            items = [r["item"] for r in fp.read_csv(path)]
+        self.assertEqual(items, ["BTMC VRTL Vàng miếng 999.9", "PNJ NN KL mua/bán"])
 
     def test_every_source_has_a_health_name(self):
         self.assertIn("SJC (sjc.com.vn)", fp.FETCHERS)
