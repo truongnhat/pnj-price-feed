@@ -9,8 +9,8 @@ It's built so other tools and AI agents can read it straight from the raw GitHub
 | source | category | What it is | Endpoint (public, no auth) |
 |---|---|---|---|
 | `SJC` | `gold` | SJC domestic gold buy/sell prices, Ho Chi Minh City branch. **Blocks non-Vietnam IPs, so it currently fails on GitHub-hosted runners**; kept in case that changes | `sjc.com.vn/GoldPrice/Services/PriceService.ashx` |
-| `vnappmob.com` | `gold` | SJC gold prices (bars, rings, jewelry) through a free public API. A short-lived token is requested on every run and never stored | `api.vnappmob.com/api/v2/gold/sjc` |
-| `DOJI` | `gold` | DOJI domestic gold buy/sell prices (bars, rings, jewelry) | `update.giavang.doji.vn/banggia/doji_92411/92411` (XML) |
+| `vnappmob.com` | `gold` | **SJC** and **DOJI** gold prices (bars, rings, jewelry) through a free public API. `item` starts with the brand (`SJC …`, `DOJI …`). A short-lived token is requested on every run and never stored | `api.vnappmob.com/api/v2/gold/{sjc,doji}` |
+| `DOJI` | `gold` | DOJI's own XML feed. Used only when vnappmob has no DOJI prices (the feed's TLS certificate chain is currently broken) | `update.giavang.doji.vn/banggia/doji_92411/92411` (XML) |
 | `Vietcombank` | `fx` | VND exchange rates (cash and transfer) | `vietcombank.com.vn/api/exchangerates` (falls back to the legacy XML feed) |
 | `gold-api.com` / `goldprice.org` / `stooq.com` | `gold`, `silver` | International spot prices, XAU and XAG. Providers are tried in this order and the first that works is used; `source` names that provider | `api.gold-api.com`, `data-asg.goldprice.org`, `stooq.com/q/l/` |
 
@@ -41,7 +41,7 @@ The files are UTF-8 (no BOM), comma-separated, with `\n` line endings and a head
 
 Notes:
 - **Key** = (`source`, `category`, `price_type`, `item`). `latest.csv` has exactly one row per key.
-- Domestic gold (`category=gold`, `currency=VND`) is always converted to **VND per lượng**, whatever unit the source quotes in (VND or thousand VND, per lượng or per chỉ). Values outside 30M–1B VND/lượng are dropped as implausible.
+- Domestic gold (`category=gold`, `currency=VND`) is always converted to **VND per lượng**, whatever unit the source quotes in (VND or thousand VND, per lượng or per chỉ). Values are rounded to whole VND, and values outside 30M–1B VND/lượng are dropped as implausible.
 - For `spot` prices, `buy` and `sell` both hold the same mid price. Because of the provider fallback, `latest.csv` can hold an `XAU` row from more than one provider. Use the row with the newest `last_checked`.
 - `timestamp` = when this exact price was **first observed**. It never changes for a given row.
 - `last_checked` = when the source **last confirmed** this price. In `prices.csv`, a row covers the interval `[timestamp, last_checked]`. Older rows keep the `last_checked` of the last run before the price changed.

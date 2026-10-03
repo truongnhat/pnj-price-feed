@@ -101,24 +101,47 @@ class ParserTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             fp.gold_multiplier([])
 
-    def test_vnappmob_sjc(self):
+    def test_vnappmob(self):
         payload = {"results": [{"buy_1l": 141000000.0, "sell_1l": 143000000.0,
-                                "buy_nhan1c": 139500000.0, "sell_nhan1c": 142500000.0,
+                                "buy_nutrang_75": 96860651.0651, "sell_nutrang_75": 106660651.5,
                                 "buy_xyz": 140000000.0, "datetime": "1759477200"}]}
-        rows = fp.parse_vnappmob_sjc(payload, TS)
+        rows = fp.parse_vnappmob(payload, "sjc", TS)
         got = {r["item"]: (r["buy"], r["sell"], r["status"]) for r in rows}
         self.assertEqual(got, {"SJC 1L, 10L, 1KG": ("141000000", "143000000", "ok"),
-                               "SJC nhẫn 99,99% 1-5 chỉ": ("139500000", "142500000", "ok"),
+                               "SJC nữ trang 75%": ("96860651", "106660652", "ok"),
                                "SJC xyz": ("140000000", "", "partial")})
         self.assertTrue(all(r["source"] == "vnappmob.com" for r in rows))
+        doji = fp.parse_vnappmob({"results": [{"buy_hn": 14050, "sell_hn": 14350}]}, "doji", TS)
+        self.assertEqual([(r["item"], r["buy"]) for r in doji], [("DOJI Hà Nội", "140500000")])
         with self.assertRaises(ValueError):
-            fp.parse_vnappmob_sjc({"results": []}, TS)
+            fp.parse_vnappmob({"results": []}, "sjc", TS)
+
+    def test_read_csv_renames_items_and_rounds_vnd(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "p.csv"
+            p.write_text(",".join(fp.COLUMNS) + "\n"
+                         f"{TS},vnappmob.com,gold,retail,SJC nutrang_75,96860651.0651,"
+                         f"106660651.0651,VND,luong,ok,{TS}\n"
+                         f"{TS},gold-api.com,gold,spot,XAU,4141.8,4141.8,USD,troy_oz,ok,{TS}\n",
+                         encoding="utf-8")
+            sjc, xau = fp.read_csv(p)
+        self.assertEqual((sjc["item"], sjc["buy"], sjc["sell"]),
+                         ("SJC nữ trang 75%", "96860651", "106660651"))
+        self.assertEqual(xau["buy"], "4141.8")  # USD prices keep their decimals
 
     def test_http_does_not_retry_403(self):
         resp = mock.Mock(status_code=403)
         err = fp.requests.HTTPError("403 Forbidden", response=resp)
         resp.raise_for_status.side_effect = err
         with mock.patch.object(fp.requests, "request", return_value=resp) as req, \
+             mock.patch.object(fp.time, "sleep"), mock.patch.object(fp.log, "warning"):
+            with self.assertRaises(RuntimeError):
+                fp.http("GET", "https://example.invalid")
+        self.assertEqual(req.call_count, 1)
+
+    def test_http_does_not_retry_bad_certificate(self):
+        err = fp.requests.exceptions.SSLError("CERTIFICATE_VERIFY_FAILED")
+        with mock.patch.object(fp.requests, "request", side_effect=err) as req, \
              mock.patch.object(fp.time, "sleep"), mock.patch.object(fp.log, "warning"):
             with self.assertRaises(RuntimeError):
                 fp.http("GET", "https://example.invalid")
