@@ -3,9 +3,9 @@
 
 Sources (all public, no authentication):
   - SJC          : domestic gold prices (sjc.com.vn; blocks non-Vietnam IPs)
-  - DOJI         : domestic gold prices (giavang.doji.vn public XML feed)
-  - vnappmob.com : SJC gold prices via a free public API (short-lived token is
-                   requested at runtime; nothing is stored in the repository)
+  - vnappmob.com : SJC and DOJI gold prices via a free public API (short-lived
+                   token is requested at runtime; nothing is stored in the repository)
+  - DOJI         : DOJI's own XML feed, used only if vnappmob has no DOJI prices
   - Vietcombank  : VND exchange rates (vietcombank.com.vn)
   - Metals spot  : international spot prices for gold (XAU) and silver (XAG),
                    first working provider of gold-api.com, goldprice.org, stooq.com
@@ -25,6 +25,7 @@ Exit codes: 0 if at least one source succeeded, 1 if every source failed.
 from __future__ import annotations
 
 import csv
+import functools
 import logging
 import os
 import sys
@@ -88,7 +89,7 @@ METAL_SYMBOLS = ("XAU", "XAG")
 DOJI_URLS = ("https://update.giavang.doji.vn/banggia/doji_92411/92411",
              "http://update.giavang.doji.vn/banggia/doji_92411/92411")
 VNAPPMOB_KEY_URL = "https://api.vnappmob.com/api/request_api_key"
-VNAPPMOB_SJC_URL = "https://api.vnappmob.com/api/v2/gold/sjc"
+VNAPPMOB_GOLD_URL = "https://api.vnappmob.com/api/v2/gold/{brand}"
 
 # Plausible domestic gold price range in VND per luong (37.5 g); covers 10K-24K gold.
 GOLD_LUONG_MIN, GOLD_LUONG_MAX = 30_000_000, 1_000_000_000
@@ -156,8 +157,9 @@ def http(method: str, url: str, session: requests.Session | None = None,
             last_error = exc
             log.warning("%s %s failed (attempt %d/%d): %s", method, url, attempt, RETRIES, exc)
             status = getattr(exc.response, "status_code", None)
-            if status and 400 <= status < 500 and status != 429:
-                break  # client errors (e.g. 403 geo-block) do not fix themselves on retry
+            if (status and 400 <= status < 500 and status != 429) or \
+                    isinstance(exc, requests.exceptions.SSLError):
+                break  # 4xx (e.g. 403 geo-block) and bad certificates do not fix themselves
             if attempt < RETRIES:
                 time.sleep(2 * attempt)
     raise RuntimeError(f"{method} {url} failed: {last_error}")
@@ -218,8 +220,9 @@ def gold_rows(ts: str, source: str, pairs: list[tuple[str, object, object]]) -> 
     rows, seen = [], set()
     for item, buy, sell in parsed:
         buy, sell = (v * factor if v is not None else None for v in (buy, sell))
-        buy, sell = (v if v is not None and GOLD_LUONG_MIN <= v <= GOLD_LUONG_MAX else None
-                     for v in (buy, sell))
+        buy, sell = (v.quantize(Decimal(1))
+                     if v is not None and GOLD_LUONG_MIN <= v <= GOLD_LUONG_MAX else None
+                     for v in (buy, sell))  # whole VND
         row = make_row(ts, source, "gold", "retail", item, buy, sell, "VND", "luong")
         if row and row["item"] not in seen:
             seen.add(row["item"])
@@ -235,27 +238,47 @@ def parse_doji_xml(text: str | bytes, ts: str) -> list[dict]:
     return gold_rows(ts, "DOJI", pairs)
 
 
+# Field codes seen in vnappmob responses -> readable item names. Unknown codes
+# fall back to "<BRAND> <code>" so new products still appear.
 VNAPPMOB_LABELS = {
-    "1l": "SJC 1L, 10L, 1KG",
-    "1c": "SJC 1 chỉ, 2 chỉ, 5 chỉ",
-    "nhan1c": "SJC nhẫn 99,99% 1-5 chỉ",
-    "trangsuc49": "SJC nữ trang 99,99%",
-    "trangsuc99": "SJC nữ trang 99%",
-    "75l": "SJC nữ trang 75%",
-    "58l": "SJC nữ trang 58,3%",
-    "41l": "SJC nữ trang 41,7%",
+    "sjc": {
+        "1l": "SJC 1L, 10L, 1KG",
+        "1c": "SJC 1 chỉ",
+        "5c": "SJC 5 chỉ",
+        "nhan1c": "SJC nhẫn 99,99% 1-5 chỉ",
+        "nutrang_9999": "SJC nữ trang 99,99%",
+        "nutrang_99": "SJC nữ trang 99%",
+        "nutrang_75": "SJC nữ trang 75%",
+    },
+    "doji": {
+        "hn": "DOJI Hà Nội",
+        "hcm": "DOJI TP.HCM",
+        "dn": "DOJI Đà Nẵng",
+        "ct": "DOJI Cần Thơ",
+    },
+}
+
+# One-time renames of item names already written to the CSV, applied on read
+# so history and new rows share a key.
+ITEM_RENAMES = {
+    ("vnappmob.com", "SJC 1 chỉ, 2 chỉ, 5 chỉ"): "SJC 1 chỉ",
+    ("vnappmob.com", "SJC 5c"): "SJC 5 chỉ",
+    ("vnappmob.com", "SJC nutrang_9999"): "SJC nữ trang 99,99%",
+    ("vnappmob.com", "SJC nutrang_99"): "SJC nữ trang 99%",
+    ("vnappmob.com", "SJC nutrang_75"): "SJC nữ trang 75%",
 }
 
 
-def parse_vnappmob_sjc(payload: dict, ts: str) -> list[dict]:
+def parse_vnappmob(payload: dict, brand: str, ts: str) -> list[dict]:
     """{"results": [{"buy_1l": ..., "sell_1l": ..., "buy_nhan1c": ..., "datetime": ...}]}"""
     results = payload.get("results") if isinstance(payload, dict) else None
     rec = results[0] if isinstance(results, list) and results else None
     if not isinstance(rec, dict):
-        raise ValueError("vnappmob: no results")
+        raise ValueError(f"vnappmob {brand}: no results")
+    labels = VNAPPMOB_LABELS.get(brand, {})
     codes = sorted({k[4:] for k in rec if k.startswith("buy_")} |
                    {k[5:] for k in rec if k.startswith("sell_")})
-    pairs = [(VNAPPMOB_LABELS.get(c, f"SJC {c}"), rec.get(f"buy_{c}"), rec.get(f"sell_{c}"))
+    pairs = [(labels.get(c, f"{brand.upper()} {c}"), rec.get(f"buy_{c}"), rec.get(f"sell_{c}"))
              for c in codes]
     return gold_rows(ts, "vnappmob.com", pairs)
 
@@ -340,7 +363,7 @@ def fetch_sjc(ts: str) -> list[dict]:
         return parse_sjc(resp.json(), ts)
 
 
-def fetch_doji(ts: str) -> list[dict]:
+def fetch_doji_direct(ts: str) -> list[dict]:
     errors = []
     for url in DOJI_URLS:  # some networks only reach the plain-HTTP host
         try:
@@ -354,17 +377,36 @@ def fetch_doji(ts: str) -> list[dict]:
     raise RuntimeError(" | ".join(errors))
 
 
-def fetch_vnappmob_sjc(ts: str) -> list[dict]:
-    # The API hands out a free, short-lived token on request; it is used for
-    # this run only and never stored.
+@functools.lru_cache(maxsize=1)
+def vnappmob_token() -> str:
+    # The API hands out a free, short-lived token on request; it is kept in
+    # memory for this run only and never stored or logged.
     key = http("GET", VNAPPMOB_KEY_URL, params={"scope": "gold"}).json().get("results")
     if not key:
         raise ValueError("vnappmob: no token returned")
-    resp = http("GET", VNAPPMOB_SJC_URL, headers={**HEADERS, "Authorization": f"Bearer {key}"})
-    rows = parse_vnappmob_sjc(resp.json(), ts)
+    return key
+
+
+def fetch_vnappmob(brand: str, ts: str) -> list[dict]:
+    resp = http("GET", VNAPPMOB_GOLD_URL.format(brand=brand),
+                headers={**HEADERS, "Authorization": f"Bearer {vnappmob_token()}"})
+    rows = parse_vnappmob(resp.json(), brand, ts)
     if not rows:
-        raise ValueError(f"vnappmob: no prices, body {snippet(resp)}")
+        raise ValueError(f"vnappmob {brand}: no prices, body {snippet(resp)}")
     return rows
+
+
+def fetch_vnappmob_sjc(ts: str) -> list[dict]:
+    return fetch_vnappmob("sjc", ts)
+
+
+def fetch_doji(ts: str) -> list[dict]:
+    """DOJI via vnappmob; DOJI's own feed (broken TLS chain at times) as fallback."""
+    try:
+        return fetch_vnappmob("doji", ts)
+    except Exception as exc:  # noqa: BLE001 - fall back to the direct feed
+        log.warning("vnappmob DOJI failed (%s), trying DOJI's own feed", exc)
+        return fetch_doji_direct(ts)
 
 
 def fetch_vietcombank(ts: str) -> list[dict]:
@@ -412,8 +454,8 @@ def fetch_metals(ts: str) -> list[dict]:
 
 FETCHERS = {
     "SJC": fetch_sjc,
+    "SJC via vnappmob.com": fetch_vnappmob_sjc,
     "DOJI": fetch_doji,
-    "vnappmob.com (SJC)": fetch_vnappmob_sjc,
     "Vietcombank": fetch_vietcombank,
     "Metals spot": fetch_metals,
 }
@@ -433,10 +475,18 @@ def read_csv(path: Path) -> list[dict]:
         reader = csv.DictReader(fh)
         if reader.fieldnames == LEGACY_COLUMNS:
             log.info("%s: migrating legacy header, adding last_checked", path)
-            return [{**row, "last_checked": row["timestamp"]} for row in reader]
-        if reader.fieldnames != COLUMNS:
+            rows = [{**row, "last_checked": row["timestamp"]} for row in reader]
+        elif reader.fieldnames == COLUMNS:
+            rows = list(reader)
+        else:
             raise ValueError(f"{path} header {reader.fieldnames} does not match {COLUMNS}")
-        return list(reader)
+    for row in rows:
+        row["item"] = ITEM_RENAMES.get((row["source"], row["item"]), row["item"])
+        if row["category"] == "gold" and row["currency"] == "VND":
+            for col in ("buy", "sell"):  # early rows carried fractional VND
+                if "." in row[col]:
+                    row[col] = fmt(Decimal(row[col]).quantize(Decimal(1)))
+    return rows
 
 
 def write_csv(path: Path, rows: list[dict]) -> None:
