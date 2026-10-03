@@ -873,7 +873,38 @@ def central_rate_context(markup: str) -> str:
     return " || ".join(text[max(0, i - 40):i + 160] for i in spots[:3]) or "label not in page text"
 
 
+def central_rate_from_tables(markup: str) -> Decimal | None:
+    """A table with a 'trung tâm' / 'central' column and a USD row."""
+    for grid in html_tables(markup):
+        col = None
+        for cells in grid:
+            lower = [c.lower() for c in cells]
+            if col is None:
+                col = next((i for i, c in enumerate(lower)
+                            if ("trung tâm" in c or "central" in c) and "trần" not in c), None)
+                continue
+            if col < len(cells) and any(re.search(r"\busd\b|đô la mỹ", c) for c in lower):
+                rate = parse_number(cells[col])
+                if rate is not None and CENTRAL_RATE_MIN <= rate <= CENTRAL_RATE_MAX:
+                    return rate
+    return None
+
+
+def central_rate_links(markup: str, base_url: str) -> list[str]:
+    """Links whose text mentions the central rate (the SBV menu entry)."""
+    links = []
+    for href, label in re.findall(r'(?is)<a\b[^>]*href=["\']([^"\'#]+)["\'][^>]*>(.*?)</a>', markup):
+        if re.search(r"trung\s*tâm|central\s*(?:exchange\s*)?rate", html_text(label), re.I):
+            url = requests.compat.urljoin(base_url, html.unescape(href))
+            if url.startswith("http") and url not in links:
+                links.append(url)
+    return links[:3]
+
+
 def parse_central_rate(markup: str, source: str, ts: str) -> list[dict]:
+    table_rate = central_rate_from_tables(markup)
+    if table_rate is not None:
+        return [make_row(ts, source, "fx", "central", "USD", table_rate, table_rate, "VND", "1 USD")]
     text = html_text(markup)
     for pattern in CENTRAL_PATTERNS:
         for match in pattern.finditer(text):
@@ -1046,9 +1077,22 @@ def fetch_central_rate(ts: str) -> list[dict]:
         def run():
             resp = http("GET", url, headers=HTML_HEADERS)
             rows = parse_central_rate(resp.text, source, ts)
-            if not rows:
-                raise ValueError(f"no central rate found; page text: {central_rate_context(resp.text)!r}")
-            return rows
+            if rows:
+                return rows
+            # The SBV home page only links to the central-rate page (the value on
+            # the home page is filled in by JavaScript): follow that link.
+            notes = [f"{url}: {central_rate_context(resp.text)!r}"]
+            for link in central_rate_links(resp.text, resp.url or url):
+                try:
+                    page = http("GET", link, headers=HTML_HEADERS)
+                    rows = parse_central_rate(page.text, source, ts)
+                    if rows:
+                        log.info("SBV central rate: found on linked page %s", link)
+                        return rows
+                    notes.append(f"{link}: {central_rate_context(page.text)!r}")
+                except Exception as exc:  # noqa: BLE001 - try the next link
+                    notes.append(f"{link}: {exc}")
+            raise ValueError("no central rate found; " + " | ".join(notes))
         return run
     return first_working("SBV central rate", [(s, provider(s, u)) for s, u in SBV_CENTRAL_URLS])
 
