@@ -1,6 +1,8 @@
 """Offline tests for parsers and CSV logic. Run: python -m unittest discover -s tests"""
 
+import contextlib
 import csv
+import io
 import re
 import sys
 import tempfile
@@ -12,6 +14,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import fetch_prices as fp  # noqa: E402
 
 TS = "2026-10-03T10:17:05+07:00"
+
+
+def run_main() -> int:
+    """Run run_main() without its ::warning:: lines reaching the real Actions log."""
+    with contextlib.redirect_stdout(io.StringIO()), mock.patch.object(fp.logging, "basicConfig"):
+        return fp.main()
 
 SJC_PAYLOAD = {
     "success": True,
@@ -136,17 +144,17 @@ class CsvTests(unittest.TestCase):
                  mock.patch.object(fp, "PRICES_CSV", prices), \
                  mock.patch.object(fp, "LATEST_CSV", latest):
                 with mock.patch.object(fp, "now_vn", return_value=t1):
-                    self.assertEqual(fp.main(), 0)
+                    self.assertEqual(run_main(), 0)
                 first = prices.read_bytes()
                 # Second run, same prices: no new rows, only last_checked moves.
                 with mock.patch.object(fp, "now_vn", return_value=t2):
-                    self.assertEqual(fp.main(), 0)
+                    self.assertEqual(run_main(), 0)
                 self.assertEqual(prices.read_bytes(), first.replace(t1.encode(), t2.encode())
                                  .replace(b"\n" + t2.encode(), b"\n" + t1.encode()))
                 # Third run: SJC down, gold-api back. SJC rows keep the t2 last_checked.
                 fake["SJC"], fake["gold-api.com"] = gold_down, gold_ok
                 with mock.patch.object(fp, "now_vn", return_value=t3):
-                    self.assertEqual(fp.main(), 0)
+                    self.assertEqual(run_main(), 0)
             raw = prices.read_bytes().decode("utf-8")
             self.assertFalse(raw.startswith("\ufeff"))
             self.assertNotIn("\r", raw)
@@ -179,7 +187,7 @@ class CsvTests(unittest.TestCase):
              mock.patch.object(fp, "FETCHERS", {"a": boom, "b": boom}), \
              mock.patch.object(fp, "PRICES_CSV", Path(d) / "p.csv"), \
              mock.patch.object(fp, "LATEST_CSV", Path(d) / "l.csv"):
-            self.assertEqual(fp.main(), 1)
+            self.assertEqual(run_main(), 1)
 
     def test_header_mismatch_is_rejected(self):
         with tempfile.TemporaryDirectory() as d:
