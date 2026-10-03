@@ -69,6 +69,32 @@ class ParserTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             fp.parse_gold_api({}, "XAG", TS)
 
+    def test_goldprice_org(self):
+        rows = fp.parse_goldprice_org(
+            {"items": [{"curr": "USD", "xauPrice": 2650.1, "xagPrice": 31.234}]}, TS)
+        self.assertEqual([(r["source"], r["item"], r["sell"]) for r in rows],
+                         [("goldprice.org", "XAU", "2650.1"), ("goldprice.org", "XAG", "31.23")])
+        with self.assertRaises(ValueError):
+            fp.parse_goldprice_org({"items": []}, TS)
+
+    def test_stooq(self):
+        text = "Symbol,Date,Time,Open,High,Low,Close\nXAUUSD,2026-10-03,09:25:00,2640,2660,2635,2650.5\n"
+        (row,) = fp.parse_stooq(text, "XAU", TS)
+        self.assertEqual((row["source"], row["buy"], row["unit"]), ("stooq.com", "2650.5", "troy_oz"))
+        with self.assertRaises(ValueError):
+            fp.parse_stooq("Symbol,Date,Time,Open,High,Low,Close\nXAUUSD,N/D,N/D,N/D,N/D,N/D,N/D\n",
+                           "XAU", TS)
+
+    def test_metals_fall_back_to_next_provider(self):
+        down = mock.Mock(side_effect=RuntimeError("DNS"), __name__="_down")
+        ok = lambda ts: fp.parse_goldprice_org(  # noqa: E731
+            {"items": [{"curr": "USD", "xauPrice": 1, "xagPrice": 2}]}, ts)
+        with mock.patch.object(fp, "METAL_PROVIDERS", (down, ok)):
+            self.assertEqual({r["source"] for r in fp.fetch_metals(TS)}, {"goldprice.org"})
+        with mock.patch.object(fp, "METAL_PROVIDERS", (down, down)):
+            with self.assertRaises(RuntimeError):
+                fp.fetch_metals(TS)
+
     def test_timestamp_is_vietnam_iso8601(self):
         self.assertRegex(fp.now_vn(), r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\+07:00$")
 

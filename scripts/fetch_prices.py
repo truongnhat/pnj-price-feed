@@ -4,7 +4,8 @@
 Sources (all public, no authentication):
   - SJC          : domestic gold prices (sjc.com.vn)
   - Vietcombank  : VND exchange rates (vietcombank.com.vn)
-  - gold-api.com : international spot prices for gold (XAU) and silver (XAG)
+  - Metals spot  : international spot prices for gold (XAU) and silver (XAG),
+                   first working provider of gold-api.com, goldprice.org, stooq.com
 
 Output files (UTF-8, no BOM, comma-separated, "\n" line endings):
   - data/prices.csv : price history. A row is appended only when a price
@@ -64,11 +65,23 @@ HEADERS = {
     "User-Agent": "pnj-price-feed/1.0 (+https://github.com/truongnhat/pnj-price-feed)",
     "Accept": "application/json, text/xml, */*",
 }
+# Some public sites reject non-browser clients (HTTP 403). These are ordinary
+# request headers, not credentials.
+BROWSER_HEADERS = {
+    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                   "(KHTML, like Gecko) Chrome/129.0 Safari/537.36"),
+    "Accept": "application/json, text/javascript, */*; q=0.01",
+    "Accept-Language": "vi-VN,vi;q=0.9,en;q=0.8",
+}
 
 SJC_URL = "https://sjc.com.vn/GoldPrice/Services/PriceService.ashx"
 VCB_JSON_URL = "https://www.vietcombank.com.vn/api/exchangerates"
 VCB_XML_URL = "https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx"
+SJC_HOME_URL = "https://sjc.com.vn/"
 GOLD_API_URL = "https://api.gold-api.com/price/{symbol}"
+GOLDPRICE_ORG_URL = "https://data-asg.goldprice.org/dbXRates/USD"
+STOOQ_URL = "https://stooq.com/q/l/"
+METAL_SYMBOLS = ("XAU", "XAG")
 
 log = logging.getLogger("fetch_prices")
 
@@ -120,11 +133,13 @@ def make_row(ts, source, category, price_type, item, buy, sell, currency, unit) 
     }
 
 
-def http(method: str, url: str, **kwargs) -> requests.Response:
+def http(method: str, url: str, session: requests.Session | None = None,
+         headers: dict | None = None, **kwargs) -> requests.Response:
     last_error: Exception | None = None
     for attempt in range(1, RETRIES + 1):
         try:
-            resp = requests.request(method, url, headers=HEADERS, timeout=TIMEOUT, **kwargs)
+            resp = (session or requests).request(method, url, headers=headers or HEADERS,
+                                                 timeout=TIMEOUT, **kwargs)
             resp.raise_for_status()
             return resp
         except requests.RequestException as exc:
@@ -195,22 +210,53 @@ def parse_vcb_xml(text: str | bytes, ts: str) -> list[dict]:
     return rows
 
 
-def parse_gold_api(payload: dict, symbol: str, ts: str) -> list[dict]:
-    price = to_number(payload.get("price"))
+def spot_row(source: str, symbol: str, value, ts: str) -> dict:
+    price = to_number(value)
     if price is None:
-        raise ValueError(f"gold-api: no price for {symbol}")
+        raise ValueError(f"{source}: no price for {symbol}")
     price = price.quantize(Decimal("0.01"))
     category = {"XAU": "gold", "XAG": "silver"}.get(symbol, "metal")
-    row = make_row(ts, "gold-api.com", category, "spot", symbol, price, price, "USD", "troy_oz")
-    return [row]
+    return make_row(ts, source, category, "spot", symbol, price, price, "USD", "troy_oz")
+
+
+def parse_gold_api(payload: dict, symbol: str, ts: str) -> list[dict]:
+    return [spot_row("gold-api.com", symbol, payload.get("price"), ts)]
+
+
+def parse_goldprice_org(payload: dict, ts: str) -> list[dict]:
+    """{"items": [{"curr": "USD", "xauPrice": 2650.1, "xagPrice": 31.2, ...}]}"""
+    items = [i for i in payload.get("items") or [] if i.get("curr") == "USD"]
+    if not items:
+        raise ValueError("goldprice.org: no USD item")
+    return [spot_row("goldprice.org", sym, items[0].get(f"{sym.lower()}Price"), ts)
+            for sym in METAL_SYMBOLS]
+
+
+def parse_stooq(text: str, symbol: str, ts: str) -> list[dict]:
+    """CSV: Symbol,Date,Time,Open,High,Low,Close (Close is 'N/D' when unavailable)."""
+    rows = list(csv.DictReader(text.splitlines()))
+    if not rows:
+        raise ValueError(f"stooq.com: empty response for {symbol}")
+    return [spot_row("stooq.com", symbol, rows[0].get("Close"), ts)]
 
 
 # --------------------------------------------------------------------------- #
 # Fetchers
 # --------------------------------------------------------------------------- #
 def fetch_sjc(ts: str) -> list[dict]:
-    resp = http("POST", SJC_URL, data={"method": "GetCurrentGoldPricesByBranch", "BranchId": "1"})
-    return parse_sjc(resp.json(), ts)
+    # SJC answers 403 to bare API calls: open the home page first (cookies),
+    # then call the price service the way the site's own page does.
+    with requests.Session() as session:
+        try:
+            session.get(SJC_HOME_URL, headers={**BROWSER_HEADERS, "Accept": "text/html"},
+                        timeout=TIMEOUT)
+        except requests.RequestException as exc:
+            log.warning("SJC home page failed (%s), calling the API anyway", exc)
+        headers = {**BROWSER_HEADERS, "Referer": SJC_HOME_URL,
+                   "Origin": SJC_HOME_URL.rstrip("/"), "X-Requested-With": "XMLHttpRequest"}
+        resp = http("POST", SJC_URL, session=session, headers=headers,
+                    data={"method": "GetCurrentGoldPricesByBranch", "BranchId": "1"})
+        return parse_sjc(resp.json(), ts)
 
 
 def fetch_vietcombank(ts: str) -> list[dict]:
@@ -225,17 +271,41 @@ def fetch_vietcombank(ts: str) -> list[dict]:
     return parse_vcb_xml(http("GET", VCB_XML_URL).content, ts)
 
 
-def fetch_gold_api(ts: str) -> list[dict]:
-    rows = []
-    for symbol in ("XAU", "XAG"):
-        rows += parse_gold_api(http("GET", GOLD_API_URL.format(symbol=symbol)).json(), symbol, ts)
-    return rows
+def _gold_api(ts: str) -> list[dict]:
+    return [r for sym in METAL_SYMBOLS
+            for r in parse_gold_api(http("GET", GOLD_API_URL.format(symbol=sym)).json(), sym, ts)]
+
+
+def _goldprice_org(ts: str) -> list[dict]:
+    return parse_goldprice_org(http("GET", GOLDPRICE_ORG_URL, headers=BROWSER_HEADERS).json(), ts)
+
+
+def _stooq(ts: str) -> list[dict]:
+    return [r for sym in METAL_SYMBOLS
+            for r in parse_stooq(http("GET", STOOQ_URL, headers=BROWSER_HEADERS,
+                                      params={"s": f"{sym.lower()}usd", "f": "sd2t2ohlc",
+                                              "h": "", "e": "csv"}).text, sym, ts)]
+
+
+METAL_PROVIDERS = (_gold_api, _goldprice_org, _stooq)
+
+
+def fetch_metals(ts: str) -> list[dict]:
+    """Return XAU/XAG from the first provider that works; `source` names that provider."""
+    errors = []
+    for provider in METAL_PROVIDERS:
+        try:
+            return provider(ts)
+        except Exception as exc:  # noqa: BLE001 - try the next provider
+            log.warning("Metals provider %s failed: %s", provider.__name__.lstrip("_"), exc)
+            errors.append(f"{provider.__name__.lstrip('_')}: {exc}")
+    raise RuntimeError("all metals providers failed: " + " | ".join(errors))
 
 
 FETCHERS = {
     "SJC": fetch_sjc,
     "Vietcombank": fetch_vietcombank,
-    "gold-api.com": fetch_gold_api,
+    "Metals spot": fetch_metals,
 }
 
 
