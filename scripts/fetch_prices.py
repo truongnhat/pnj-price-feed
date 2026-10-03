@@ -2,7 +2,10 @@
 """Fetch publicly available market prices and append changes to data/prices.csv.
 
 Sources (all public, no authentication):
-  - SJC          : domestic gold prices (sjc.com.vn)
+  - SJC          : domestic gold prices (sjc.com.vn; blocks non-Vietnam IPs)
+  - DOJI         : domestic gold prices (giavang.doji.vn public XML feed)
+  - vnappmob.com : SJC gold prices via a free public API (short-lived token is
+                   requested at runtime; nothing is stored in the repository)
   - Vietcombank  : VND exchange rates (vietcombank.com.vn)
   - Metals spot  : international spot prices for gold (XAU) and silver (XAG),
                    first working provider of gold-api.com, goldprice.org, stooq.com
@@ -82,6 +85,13 @@ GOLD_API_URL = "https://api.gold-api.com/price/{symbol}"
 GOLDPRICE_ORG_URL = "https://data-asg.goldprice.org/dbXRates/USD"
 STOOQ_URL = "https://stooq.com/q/l/"
 METAL_SYMBOLS = ("XAU", "XAG")
+DOJI_URLS = ("https://update.giavang.doji.vn/banggia/doji_92411/92411",
+             "http://update.giavang.doji.vn/banggia/doji_92411/92411")
+VNAPPMOB_KEY_URL = "https://api.vnappmob.com/api/request_api_key"
+VNAPPMOB_SJC_URL = "https://api.vnappmob.com/api/v2/gold/sjc"
+
+# Plausible domestic gold price range in VND per luong (37.5 g); covers 10K-24K gold.
+GOLD_LUONG_MIN, GOLD_LUONG_MAX = 30_000_000, 1_000_000_000
 
 log = logging.getLogger("fetch_prices")
 
@@ -145,9 +155,17 @@ def http(method: str, url: str, session: requests.Session | None = None,
         except requests.RequestException as exc:
             last_error = exc
             log.warning("%s %s failed (attempt %d/%d): %s", method, url, attempt, RETRIES, exc)
+            status = getattr(exc.response, "status_code", None)
+            if status and 400 <= status < 500 and status != 429:
+                break  # client errors (e.g. 403 geo-block) do not fix themselves on retry
             if attempt < RETRIES:
                 time.sleep(2 * attempt)
-    raise RuntimeError(f"{method} {url} failed after {RETRIES} attempts: {last_error}")
+    raise RuntimeError(f"{method} {url} failed: {last_error}")
+
+
+def snippet(resp: requests.Response) -> str:
+    """Start of a response body, for error messages when parsing finds nothing."""
+    return repr(resp.text[:200])
 
 
 # --------------------------------------------------------------------------- #
@@ -177,6 +195,69 @@ def parse_sjc(payload: dict, ts: str) -> list[dict]:
         if row:
             rows.append(row)
     return rows
+
+
+def gold_multiplier(values: list[Decimal]) -> int:
+    """Find the factor that turns a feed's numbers into VND per luong.
+
+    Feeds quote in VND or thousand VND, per luong or per chi (1/10 luong). The
+    largest price in a gold feed is 24K gold, so pick the factor that puts it
+    in the plausible range and apply the same factor to every row.
+    """
+    top = max(values, default=None)
+    for factor in (1, 10, 1000, 10000):
+        if top is not None and GOLD_LUONG_MIN <= top * factor <= GOLD_LUONG_MAX:
+            return factor
+    raise ValueError(f"cannot infer price unit (largest value {top})")
+
+
+def gold_rows(ts: str, source: str, pairs: list[tuple[str, object, object]]) -> list[dict]:
+    """Turn (item, buy, sell) pairs from one gold feed into rows in VND per luong."""
+    parsed = [(item, to_number(b), to_number(s)) for item, b, s in pairs if item]
+    factor = gold_multiplier([v for _, b, s in parsed for v in (b, s) if v is not None])
+    rows, seen = [], set()
+    for item, buy, sell in parsed:
+        buy, sell = (v * factor if v is not None else None for v in (buy, sell))
+        buy, sell = (v if v is not None and GOLD_LUONG_MIN <= v <= GOLD_LUONG_MAX else None
+                     for v in (buy, sell))
+        row = make_row(ts, source, "gold", "retail", item, buy, sell, "VND", "luong")
+        if row and row["item"] not in seen:
+            seen.add(row["item"])
+            rows.append(row)
+    return rows
+
+
+def parse_doji_xml(text: str | bytes, ts: str) -> list[dict]:
+    """DOJI XML: <Row Name="..." Key="..." Buy="..." Sell="..."/> elements."""
+    root = ET.fromstring(text)
+    pairs = [(el.get("Name"), el.get("Buy"), el.get("Sell"))
+             for el in root.iter() if el.get("Name") and (el.get("Buy") or el.get("Sell"))]
+    return gold_rows(ts, "DOJI", pairs)
+
+
+VNAPPMOB_LABELS = {
+    "1l": "SJC 1L, 10L, 1KG",
+    "1c": "SJC 1 chỉ, 2 chỉ, 5 chỉ",
+    "nhan1c": "SJC nhẫn 99,99% 1-5 chỉ",
+    "trangsuc49": "SJC nữ trang 99,99%",
+    "trangsuc99": "SJC nữ trang 99%",
+    "75l": "SJC nữ trang 75%",
+    "58l": "SJC nữ trang 58,3%",
+    "41l": "SJC nữ trang 41,7%",
+}
+
+
+def parse_vnappmob_sjc(payload: dict, ts: str) -> list[dict]:
+    """{"results": [{"buy_1l": ..., "sell_1l": ..., "buy_nhan1c": ..., "datetime": ...}]}"""
+    results = payload.get("results") if isinstance(payload, dict) else None
+    rec = results[0] if isinstance(results, list) and results else None
+    if not isinstance(rec, dict):
+        raise ValueError("vnappmob: no results")
+    codes = sorted({k[4:] for k in rec if k.startswith("buy_")} |
+                   {k[5:] for k in rec if k.startswith("sell_")})
+    pairs = [(VNAPPMOB_LABELS.get(c, f"SJC {c}"), rec.get(f"buy_{c}"), rec.get(f"sell_{c}"))
+             for c in codes]
+    return gold_rows(ts, "vnappmob.com", pairs)
 
 
 def _vcb_rows(ts: str, code: str, cash, transfer, sell) -> list[dict]:
@@ -259,6 +340,33 @@ def fetch_sjc(ts: str) -> list[dict]:
         return parse_sjc(resp.json(), ts)
 
 
+def fetch_doji(ts: str) -> list[dict]:
+    errors = []
+    for url in DOJI_URLS:  # some networks only reach the plain-HTTP host
+        try:
+            resp = http("GET", url, headers=BROWSER_HEADERS)
+            rows = parse_doji_xml(resp.content, ts)
+            if rows:
+                return rows
+            errors.append(f"{url}: no prices, body {snippet(resp)}")
+        except Exception as exc:  # noqa: BLE001 - try the next URL
+            errors.append(f"{url}: {exc}")
+    raise RuntimeError(" | ".join(errors))
+
+
+def fetch_vnappmob_sjc(ts: str) -> list[dict]:
+    # The API hands out a free, short-lived token on request; it is used for
+    # this run only and never stored.
+    key = http("GET", VNAPPMOB_KEY_URL, params={"scope": "gold"}).json().get("results")
+    if not key:
+        raise ValueError("vnappmob: no token returned")
+    resp = http("GET", VNAPPMOB_SJC_URL, headers={**HEADERS, "Authorization": f"Bearer {key}"})
+    rows = parse_vnappmob_sjc(resp.json(), ts)
+    if not rows:
+        raise ValueError(f"vnappmob: no prices, body {snippet(resp)}")
+    return rows
+
+
 def fetch_vietcombank(ts: str) -> list[dict]:
     try:
         date = datetime.now(VN_TZ).strftime("%Y-%m-%d")
@@ -304,6 +412,8 @@ def fetch_metals(ts: str) -> list[dict]:
 
 FETCHERS = {
     "SJC": fetch_sjc,
+    "DOJI": fetch_doji,
+    "vnappmob.com (SJC)": fetch_vnappmob_sjc,
     "Vietcombank": fetch_vietcombank,
     "Metals spot": fetch_metals,
 }
