@@ -1,6 +1,8 @@
 """Offline tests for parsers and CSV logic. Run: python -m unittest discover -s tests"""
 
+import contextlib
 import csv
+import io
 import re
 import sys
 import tempfile
@@ -12,6 +14,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import fetch_prices as fp  # noqa: E402
 
 TS = "2026-10-03T10:17:05+07:00"
+
+
+def run_main() -> int:
+    """Run run_main() without its ::warning:: lines reaching the real Actions log."""
+    with contextlib.redirect_stdout(io.StringIO()), mock.patch.object(fp.logging, "basicConfig"):
+        return fp.main()
 
 SJC_PAYLOAD = {
     "success": True,
@@ -69,6 +77,32 @@ class ParserTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             fp.parse_gold_api({}, "XAG", TS)
 
+    def test_goldprice_org(self):
+        rows = fp.parse_goldprice_org(
+            {"items": [{"curr": "USD", "xauPrice": 2650.1, "xagPrice": 31.234}]}, TS)
+        self.assertEqual([(r["source"], r["item"], r["sell"]) for r in rows],
+                         [("goldprice.org", "XAU", "2650.1"), ("goldprice.org", "XAG", "31.23")])
+        with self.assertRaises(ValueError):
+            fp.parse_goldprice_org({"items": []}, TS)
+
+    def test_stooq(self):
+        text = "Symbol,Date,Time,Open,High,Low,Close\nXAUUSD,2026-10-03,09:25:00,2640,2660,2635,2650.5\n"
+        (row,) = fp.parse_stooq(text, "XAU", TS)
+        self.assertEqual((row["source"], row["buy"], row["unit"]), ("stooq.com", "2650.5", "troy_oz"))
+        with self.assertRaises(ValueError):
+            fp.parse_stooq("Symbol,Date,Time,Open,High,Low,Close\nXAUUSD,N/D,N/D,N/D,N/D,N/D,N/D\n",
+                           "XAU", TS)
+
+    def test_metals_fall_back_to_next_provider(self):
+        down = mock.Mock(side_effect=RuntimeError("DNS"), __name__="_down")
+        ok = lambda ts: fp.parse_goldprice_org(  # noqa: E731
+            {"items": [{"curr": "USD", "xauPrice": 1, "xagPrice": 2}]}, ts)
+        with mock.patch.object(fp, "METAL_PROVIDERS", (down, ok)):
+            self.assertEqual({r["source"] for r in fp.fetch_metals(TS)}, {"goldprice.org"})
+        with mock.patch.object(fp, "METAL_PROVIDERS", (down, down)):
+            with self.assertRaises(RuntimeError):
+                fp.fetch_metals(TS)
+
     def test_timestamp_is_vietnam_iso8601(self):
         self.assertRegex(fp.now_vn(), r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\+07:00$")
 
@@ -110,17 +144,17 @@ class CsvTests(unittest.TestCase):
                  mock.patch.object(fp, "PRICES_CSV", prices), \
                  mock.patch.object(fp, "LATEST_CSV", latest):
                 with mock.patch.object(fp, "now_vn", return_value=t1):
-                    self.assertEqual(fp.main(), 0)
+                    self.assertEqual(run_main(), 0)
                 first = prices.read_bytes()
                 # Second run, same prices: no new rows, only last_checked moves.
                 with mock.patch.object(fp, "now_vn", return_value=t2):
-                    self.assertEqual(fp.main(), 0)
+                    self.assertEqual(run_main(), 0)
                 self.assertEqual(prices.read_bytes(), first.replace(t1.encode(), t2.encode())
                                  .replace(b"\n" + t2.encode(), b"\n" + t1.encode()))
                 # Third run: SJC down, gold-api back. SJC rows keep the t2 last_checked.
                 fake["SJC"], fake["gold-api.com"] = gold_down, gold_ok
                 with mock.patch.object(fp, "now_vn", return_value=t3):
-                    self.assertEqual(fp.main(), 0)
+                    self.assertEqual(run_main(), 0)
             raw = prices.read_bytes().decode("utf-8")
             self.assertFalse(raw.startswith("\ufeff"))
             self.assertNotIn("\r", raw)
@@ -153,7 +187,7 @@ class CsvTests(unittest.TestCase):
              mock.patch.object(fp, "FETCHERS", {"a": boom, "b": boom}), \
              mock.patch.object(fp, "PRICES_CSV", Path(d) / "p.csv"), \
              mock.patch.object(fp, "LATEST_CSV", Path(d) / "l.csv"):
-            self.assertEqual(fp.main(), 1)
+            self.assertEqual(run_main(), 1)
 
     def test_header_mismatch_is_rejected(self):
         with tempfile.TemporaryDirectory() as d:
