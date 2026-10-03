@@ -21,6 +21,10 @@ Output files (UTF-8, no BOM, comma-separated, "\n" line endings):
                       error_msg. status=blocked_non_vn when every provider
                       refused the request (HTTP 403/451).
 
+Columns 1-11 are unchanged since v2. Column 12, source_updated_at, holds the
+time the source itself states (empty when it states none; the run time is
+never substituted). health.csv's source_stale compares it with the run date.
+
 No number is ever invented: a source that fails writes no price rows, and its
 existing rows simply stop getting a fresh last_checked.
 
@@ -62,10 +66,12 @@ COLUMNS = [
     "currency",
     "unit",
     "status",
-    "last_checked",  # appended last: positional readers of the first 10 columns are unaffected
+    "last_checked",  # v2: appended, positional readers of the first 10 columns are unaffected
+    "source_updated_at",  # v3: appended, the time the source itself states (may be empty)
 ]
-# Header written before last_checked existed; such files are migrated on read.
-LEGACY_COLUMNS = COLUMNS[:-1]
+# Older headers (v1: 10 columns, v2: 11 columns) are migrated on read.
+LEGACY_COLUMNS = COLUMNS[:10]
+V2_COLUMNS = COLUMNS[:11]
 KEY_COLUMNS = ("source", "category", "price_type", "item")
 VALUE_COLUMNS = ("buy", "sell", "currency", "unit", "status")
 
@@ -77,7 +83,7 @@ DATA_DIR = Path(os.environ.get("PRICE_FEED_DATA_DIR", ROOT / "data"))
 PRICES_CSV = DATA_DIR / "prices.csv"
 LATEST_CSV = DATA_DIR / "latest.csv"
 HEALTH_CSV = DATA_DIR / "health.csv"
-HEALTH_COLUMNS = ["source", "status", "last_success", "last_error", "error_msg"]
+HEALTH_COLUMNS = ["source", "status", "last_success", "last_error", "error_msg", "source_stale"]
 
 TIMEOUT = (10, 25)  # connect, read (seconds)
 RETRIES = 3
@@ -180,7 +186,85 @@ def make_row(ts, source, category, price_type, item, buy, sell, currency, unit) 
         "unit": unit,
         "status": "ok" if buy is not None and sell is not None else "partial",
         "last_checked": ts,
+        "source_updated_at": "",  # set by stamp() when the source states a time
     }
+
+
+def stamp(rows: list[dict], updated_at: str) -> list[dict]:
+    """Record the time the source itself states for these rows ('' when it states none)."""
+    for row in rows:
+        row["source_updated_at"] = updated_at or ""
+    return rows
+
+
+_DATE = r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})"
+_TIME = r"(\d{1,2})[:hH](\d{2})(?::(\d{2}))?\s*(AM|PM|SA|CH)?"
+
+
+def find_vn_datetime(text: str, month_first: bool = False) -> str:
+    """First 'HH:MM dd/mm/yyyy', 'dd/mm/yyyy HH:MM' or 'dd/mm/yyyy' in text, as ISO +07:00.
+
+    month_first=True reads the date as m/d/yyyy (Vietcombank's XML). A date
+    without a time becomes 00:00. Returns '' when nothing valid is found.
+    """
+    text = text or ""
+    candidates = []
+    # Up to 15 non-digit characters between time and date ("15h20 ngày 03/10/2026").
+    for pattern, order in ((_TIME + r"\D{1,15}?" + _DATE, "td"), (_DATE + r"\D{1,15}?" + _TIME, "dt"),
+                           (_DATE, "d")):
+        m = re.search(pattern, text, re.I)
+        if m:
+            candidates.append((m.start(), order, m.groups()))
+    for _, order, g in sorted(candidates, key=lambda c: (c[0], len(c[1]) * -1)):
+        if order == "td":
+            hh, mi, ss, ampm, a, b, y = g
+        elif order == "dt":
+            a, b, y, hh, mi, ss, ampm = g
+        else:
+            (a, b, y), hh, mi, ss, ampm = g, "0", "0", None, None
+        day, month = (b, a) if month_first else (a, b)
+        hour = int(hh)
+        if ampm and ampm.upper() in ("PM", "CH") and hour < 12:
+            hour += 12
+        if ampm and ampm.upper() in ("AM", "SA") and hour == 12:
+            hour = 0
+        try:
+            value = datetime(int(y), int(month), int(day), hour, int(mi), int(ss or 0), tzinfo=VN_TZ)
+        except ValueError:
+            continue
+        return value.isoformat()
+    return ""
+
+
+def to_vn_iso(value) -> str:
+    """A source's time field (epoch s/ms, ISO-8601, Vietnamese text) as ISO-8601 +07:00, else ''.
+
+    Naive ISO times are taken to be Vietnam time.
+    """
+    if value is None or isinstance(value, bool) or value == "":
+        return ""
+    text = str(value).strip()
+    if re.fullmatch(r"\d{9,13}(\.\d+)?", text):
+        number = float(text)
+        if number > 1e11:
+            number /= 1000
+        return datetime.fromtimestamp(number, VN_TZ).replace(microsecond=0).isoformat()
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return find_vn_datetime(text)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=VN_TZ)
+    return parsed.astimezone(VN_TZ).replace(microsecond=0).isoformat()
+
+
+def source_stale(rows: list[dict], ts: str) -> str:
+    """'true' if the newest source_updated_at is not on the run's (Vietnam) date,
+    'false' if it is, '' if the source states no time."""
+    stated = [r["source_updated_at"] for r in rows if r.get("source_updated_at")]
+    if not stated:
+        return ""
+    return "false" if max(stated)[:10] == ts[:10] else "true"
 
 
 class BlockedError(RuntimeError):
@@ -528,7 +612,8 @@ def parse_vnappmob(payload: dict, brand: str, ts: str) -> list[dict]:
                    {k[5:] for k in rec if k.startswith("sell_")})
     pairs = [(labels.get(c, f"{brand.upper()} {c}"), rec.get(f"buy_{c}"), rec.get(f"sell_{c}"))
              for c in codes] or json_price_pairs(results)
-    return gold_rows(ts, "vnappmob.com", pairs)
+    updated = next((rec[k] for k in ("datetime", "updated_at", "update_time", "date") if rec.get(k)), None)
+    return stamp(gold_rows(ts, "vnappmob.com", pairs), to_vn_iso(updated))
 
 
 # Brand feeds also list jewelry, silver, gifts... keep rings and bars (incl. the
@@ -611,20 +696,22 @@ def _vcb_rows(ts: str, code: str, cash, transfer, sell) -> list[dict]:
 
 
 def parse_vcb_json(payload: dict, ts: str) -> list[dict]:
+    """{"Count", "Date", "UpdatedDate": "2026-10-03T08:30:00+07:00", "Data": [...]}"""
     rows = []
     for rec in payload.get("Data") or []:
         rows += _vcb_rows(ts, rec.get("currencyCode"), rec.get("cash"),
                           rec.get("transfer"), rec.get("sell"))
-    return rows
+    return stamp(rows, to_vn_iso(payload.get("UpdatedDate")))
 
 
 def parse_vcb_xml(text: str | bytes, ts: str) -> list[dict]:
+    """<ExrateList><DateTime>10/3/2026 8:30:00 AM</DateTime> (month first) <Exrate .../></ExrateList>"""
     root = ET.fromstring(text)
     rows = []
     for rec in root.iter("Exrate"):
         rows += _vcb_rows(ts, rec.get("CurrencyCode"), rec.get("Buy"),
                           rec.get("Transfer"), rec.get("Sell"))
-    return rows
+    return stamp(rows, find_vn_datetime(root.findtext("DateTime") or "", month_first=True))
 
 
 def spot_row(source: str, symbol: str, value, ts: str) -> dict:
@@ -637,7 +724,8 @@ def spot_row(source: str, symbol: str, value, ts: str) -> dict:
 
 
 def parse_gold_api(payload: dict, symbol: str, ts: str) -> list[dict]:
-    return [spot_row("gold-api.com", symbol, payload.get("price"), ts)]
+    return stamp([spot_row("gold-api.com", symbol, payload.get("price"), ts)],
+                 to_vn_iso(payload.get("updatedAt")))
 
 
 def parse_goldprice_org(payload: dict, ts: str) -> list[dict]:
@@ -712,7 +800,8 @@ def parse_ohlc_arrays(payload) -> dict:
     volumes = bars.get("v") or []
     return {"date": _epoch_date(bars["t"][i]), "open": bars["o"][i], "high": bars["h"][i],
             "low": bars["l"][i], "close": bars["c"][i],
-            "volume": volumes[i] if i < len(volumes) else None}
+            "volume": volumes[i] if i < len(volumes) else None,
+            "updated_at": to_vn_iso(bars["t"][i])}  # the bar's own timestamp
 
 
 def parse_vci_board_foreign(payload) -> dict:
@@ -742,6 +831,10 @@ def parse_vci_board_foreign(payload) -> dict:
         raise ValueError(f"no foreign buy/sell fields; fields: {sorted(flat)[:60]}")
     date = next((v for k, v in flat.items() if "tradingdate" in k.lower() and v), None)
     found["date"] = _iso_date(date) if date else None
+    # Newest time-like field the board states (e.g. matchPrice.receivedTime).
+    times = [to_vn_iso(v) for k, v in flat.items()
+             if re.search(r"time|tradingdate", k, re.I) and v not in (None, "", 0)]
+    found["updated_at"] = max((t for t in times if t), default="")
     return found
 
 
@@ -793,6 +886,10 @@ def _session_date_row(ts, source, item, date: str) -> dict:
 
 def stock_session_rows(session: dict, source: str, ts: str) -> list[dict]:
     """OHLC in VND per share (thousand-VND quotes are scaled) plus matched volume."""
+    return stamp(_stock_session_rows(session, source, ts), session.get("updated_at", ""))
+
+
+def _stock_session_rows(session: dict, source: str, ts: str) -> list[dict]:
     rows = [_session_date_row(ts, source, f"{STOCK} ngày phiên", session["date"])]
     for key, label in (("open", "mở cửa"), ("high", "cao nhất"), ("low", "thấp nhất"),
                        ("close", "đóng cửa")):
@@ -830,6 +927,10 @@ def foreign_value_factor(vols, vals, close: Decimal | None) -> int | None:
 
 def stock_foreign_rows(foreign: dict, source: str, ts: str, close: Decimal | None = None) -> list[dict]:
     """Foreign investors: buy/sell volume (shares) and, when it checks out, value (VND)."""
+    return stamp(_stock_foreign_rows(foreign, source, ts, close), foreign.get("updated_at", ""))
+
+
+def _stock_foreign_rows(foreign: dict, source: str, ts: str, close: Decimal | None) -> list[dict]:
     vols = [parse_number(foreign.get(k), allow_zero=True) for k in ("buy_vol", "sell_vol")]
     vals = [parse_number(foreign.get(k), allow_zero=True) for k in ("buy_val", "sell_val")]
     if all(v is None for v in vols):
@@ -901,7 +1002,22 @@ def central_rate_links(markup: str, base_url: str) -> list[str]:
     return links[:3]
 
 
+def central_rate_updated_at(markup: str) -> str:
+    """Date (and time, if shown) printed near the 'trung tâm' label, e.g. 'áp dụng cho ngày
+    03/10/2026'. The central rate is set per day, so a bare date means 00:00 of that day."""
+    text = html_text(markup)
+    for m in re.finditer(r"trung\s*tâm|central\s*(?:exchange\s*)?rate", text, re.I):
+        found = find_vn_datetime(text[max(0, m.start() - 120):m.end() + 240])
+        if found:
+            return found
+    return ""
+
+
 def parse_central_rate(markup: str, source: str, ts: str) -> list[dict]:
+    return stamp(_parse_central_rate(markup, source, ts), central_rate_updated_at(markup))
+
+
+def _parse_central_rate(markup: str, source: str, ts: str) -> list[dict]:
     table_rate = central_rate_from_tables(markup)
     if table_rate is not None:
         return [make_row(ts, source, "fx", "central", "USD", table_rate, table_rate, "VND", "1 USD")]
@@ -988,12 +1104,22 @@ def fetch_vnappmob_sjc(ts: str) -> list[dict]:
 HTML_HEADERS = {**BROWSER_HEADERS, "Accept": "text/html,application/xhtml+xml,*/*;q=0.8"}
 
 
+def giavang_org_updated_at(markup: str) -> str:
+    """The brand page's 'Cập nhật lúc 15:20 03/10/2026' line, as ISO +07:00 ('' if absent)."""
+    # The first mention may be a menu entry ("Cập nhật giá vàng"): take the first with a time.
+    for match in re.finditer(r"cập\s*nhật(?:\s*lúc)?\s*:?(.{0,60})", html_text(markup), re.I):
+        found = find_vn_datetime(match.group(1))
+        if found:
+            return found
+    return ""
+
+
 def fetch_giavang_org(slug: str, ts: str) -> list[dict]:
     resp = http("GET", GIAVANG_ORG_URL.format(slug=slug), headers=HTML_HEADERS)
     rows = parse_gold_html(resp.text, "giavang.org", ts)
     if not rows:
         raise ValueError(f"giavang.org/{slug}: no gold table, body {snippet(resp)}")
-    return rows
+    return stamp(rows, giavang_org_updated_at(resp.text))
 
 
 def fetch_pnj_api(ts: str) -> list[dict]:
@@ -1170,8 +1296,11 @@ def read_csv(path: Path) -> list[dict]:
     with path.open("r", encoding="utf-8-sig", newline="") as fh:
         reader = csv.DictReader(fh)
         if reader.fieldnames == LEGACY_COLUMNS:
-            log.info("%s: migrating legacy header, adding last_checked", path)
-            rows = [{**row, "last_checked": row["timestamp"]} for row in reader]
+            log.info("%s: migrating v1 header, adding last_checked and source_updated_at", path)
+            rows = [{**row, "last_checked": row["timestamp"], "source_updated_at": ""} for row in reader]
+        elif reader.fieldnames == V2_COLUMNS:
+            log.info("%s: migrating v2 header, adding source_updated_at", path)
+            rows = [{**row, "source_updated_at": ""} for row in reader]
         elif reader.fieldnames == COLUMNS:
             rows = list(reader)
         else:
@@ -1212,6 +1341,8 @@ def merge(history: list[dict], new_rows: list[dict]) -> tuple[list[dict], int]:
         prev = latest.get(key_of(row))
         if prev and all(prev[c] == row[c] for c in VALUE_COLUMNS):
             prev["last_checked"] = row["last_checked"]
+            # The source's own time is what it states now; '' if it stopped stating one.
+            prev["source_updated_at"] = row.get("source_updated_at", "")
             continue
         history.append(row)
         latest[key_of(row)] = row
@@ -1242,11 +1373,13 @@ def write_health(path: Path, health: dict[str, dict]) -> None:
     tmp.replace(path)
 
 
-def update_health(previous: dict | None, name: str, ts: str, error: Exception | None) -> dict:
-    """ok -> refresh last_success; failure -> refresh last_error and error_msg."""
+def update_health(previous: dict | None, name: str, ts: str, error: Exception | None,
+                  stale: str = "") -> dict:
+    """ok -> refresh last_success and source_stale; failure -> refresh last_error and
+    error_msg (source_stale keeps describing the rows still in latest.csv)."""
     row = {c: "" for c in HEALTH_COLUMNS} | (previous or {}) | {"source": name}
     if error is None:
-        row["status"], row["last_success"] = "ok", ts
+        row["status"], row["last_success"], row["source_stale"] = "ok", ts, stale
     else:
         row["status"] = "blocked_non_vn" if isinstance(error, BlockedError) else "error"
         row["last_error"] = ts
@@ -1264,7 +1397,7 @@ def main() -> int:
     health = {}
 
     for name, fetcher in FETCHERS.items():
-        error = None
+        error, rows = None, []
         try:
             rows = fetcher(ts)
             if not rows:
@@ -1282,7 +1415,8 @@ def main() -> int:
             log.error("%s: %s", name, exc)
             # GitHub Actions annotation, visible in the run summary
             print(f"::warning title=Source failed::{name}: {exc}")
-        health[name] = update_health(previous_health.get(name), name, ts, error)
+        health[name] = update_health(previous_health.get(name), name, ts, error,
+                                     source_stale(rows, ts) if error is None else "")
 
     # De-duplicate within this run (keep first occurrence of each key)
     seen, unique = set(), []
