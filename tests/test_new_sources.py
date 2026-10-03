@@ -227,6 +227,22 @@ class CentralRateTests(unittest.TestCase):
         self.assertIn("Tỷ giá trung tâm", fp.central_rate_context(page))
         self.assertEqual(fp.central_rate_context("<p>none</p>"), "label not in page text")
 
+    def test_central_rate_table(self):
+        (row,) = fp.parse_central_rate(fixture("sbv_central_table.html"), "sbv.gov.vn", TS)
+        self.assertEqual(row["buy"], "25118")  # USD row, not EUR
+
+    def test_follows_menu_link_when_home_page_has_no_value(self):
+        home = mock.Mock(text=fixture("sbv_home_js.html"), url="https://sbv.gov.vn/vi/trang-chu")
+        table = mock.Mock(text=fixture("sbv_central_table.html"))
+        self.assertEqual(fp.central_rate_links(home.text, home.url),
+                         ["https://sbv.gov.vn/vi/web/guest/ty-gia-trung-tam?p_p_id=abc&x=1"])
+        with mock.patch.object(fp, "http", side_effect=[home, table]) as http, \
+             mock.patch.object(fp, "SBV_CENTRAL_URLS", (("sbv.gov.vn", home.url),)):
+            (row,) = fp.fetch_central_rate(TS)
+        self.assertEqual((row["source"], row["buy"]), ("sbv.gov.vn", "25118"))
+        self.assertEqual(http.call_args_list[1].args[1],
+                         "https://sbv.gov.vn/vi/web/guest/ty-gia-trung-tam?p_p_id=abc&x=1")
+
     def test_no_rate_found(self):
         self.assertEqual(fp.parse_central_rate("<p>Tỷ giá trung tâm: đang cập nhật</p>", "x", TS), [])
 
