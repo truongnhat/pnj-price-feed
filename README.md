@@ -16,10 +16,11 @@ Feed giá thị trường công khai, tự cập nhật **mỗi giờ** (phút 1
 |---|---|
 | `data/latest.csv` | Giá mới nhất, mỗi sản phẩm 1 dòng. **Agent nên đọc file này** |
 | `data/prices.csv` | Lịch sử: chỉ thêm dòng mới khi giá thay đổi |
-| `data/health.csv` | Tình trạng từng nguồn: `ok`, `error` hoặc `blocked_non_vn` (nguồn chặn IP nước ngoài) |
+| `data/health.csv` | Tình trạng từng nguồn: `ok`, `error` hoặc `blocked_non_vn` (nguồn chặn IP nước ngoài), kèm `source_stale` |
 
 **Quy tắc đọc dữ liệu**
-- Schema 11 cột cố định. `timestamp` là lần đầu thấy mức giá đó; `last_checked` là lần gần nhất nguồn xác nhận giá còn đúng.
+- Schema 12 cột cố định. `timestamp` là lần đầu thấy mức giá đó; `last_checked` là lần gần nhất nguồn xác nhận giá còn đúng; `source_updated_at` là giờ cập nhật do **chính nguồn công bố**. Nguồn không công bố giờ thì cột này để trống, không bao giờ lấy giờ chạy thay vào.
+- `health.csv` có cột `source_stale = true` khi giờ cập nhật của nguồn không thuộc ngày chạy (giờ VN). Cuối tuần hoặc ngày lễ, cổ phiếu và tỷ giá trung tâm báo `true` là bình thường.
 - Dòng có `last_checked` cũ hơn 2 giờ là **dữ liệu cũ**: nguồn đang lỗi, xem `health.csv`.
 - Mỗi nhóm có nhiều nguồn dự phòng; cột `source` ghi nguồn đã trả dữ liệu. Nếu cùng một sản phẩm có dòng từ nhiều nguồn, lấy dòng có `last_checked` mới nhất.
 - **Không bao giờ bịa số.** Nguồn lỗi thì không ghi dòng giá nào, chỉ ghi lỗi vào `health.csv`.
@@ -72,6 +73,7 @@ The files are UTF-8 (no BOM), comma-separated, with `\n` line endings and a head
 | `unit` | string | Quantity the price refers to | `luong` (1 lượng = 37.5 g), `1 USD`, `troy_oz`, `1 cp`, `cp`, `yyyymmdd` |
 | `status` | string | `ok` = buy and sell both present; `partial` = only one of them (e.g. a bank does not buy that currency in cash) | `ok` |
 | `last_checked` | ISO-8601, `+07:00` | Vietnam time of the **most recent successful check** of the source that returned this price. Updated on every run where the source responds, even if the price did not change | `2026-10-03T14:17:04+07:00` |
+| `source_updated_at` | ISO-8601, `+07:00`, or empty | The update time **stated by the source itself**, for the latest successful check. **Empty when the source states none: the run time is never substituted.** A source that only gives a date (e.g. the SBV central rate "áp dụng cho ngày …") gives 00:00 of that date | `2026-10-03T15:20:00+07:00` |
 
 Notes:
 - **Key** = (`source`, `category`, `price_type`, `item`). `latest.csv` has exactly one row per key.
@@ -83,6 +85,19 @@ Notes:
   - `last_checked` within roughly the last 2 hours: the source is healthy. If `timestamp` is old, the price simply hasn't changed.
   - `last_checked` older than that: the source was unreachable or failed to parse (or stopped publishing that item), so treat the price as **stale**.
   - Example: `age_hours = (now - last_checked).total_seconds() / 3600; stale = age_hours > 2`.
+- Where `source_updated_at` comes from:
+
+  | Provider | Field read |
+  |---|---|
+  | `giavang.org` | The brand page's "Cập nhật lúc …" line |
+  | `vnappmob.com` | `results[0].datetime` (epoch) |
+  | `Vietcombank` | JSON `UpdatedDate`; legacy XML `<DateTime>` (month/day/year) |
+  | `sbv.gov.vn` (and mirrors) | Date (and time, if shown) printed near the "Tỷ giá trung tâm" label |
+  | `vietcap.com.vn` | Session rows: the latest bar's timestamp (the session date). Foreign rows: the board's newest time field (e.g. `receivedTime`), if present |
+  | `gold-api.com` | `updatedAt` |
+  | Other providers | Empty |
+
+  Like `last_checked`, it moves forward on an unchanged price and is not part of the change check, so it never creates a new history row by itself.
 - `buy`/`sell` hold a number or are empty. Nothing is ever estimated or filled in: a source that fails writes no rows.
 - New columns will only ever be **appended at the end**. Existing columns will not be renamed or reordered.
 
@@ -112,6 +127,7 @@ Prices quoted in thousand VND are converted to VND per share.
 | `last_success` | Vietnam time of the last run where the source returned data |
 | `last_error` | Vietnam time of the last failed run |
 | `error_msg` | Message from that last failure, listing each provider tried (it can be older than `last_success`) |
+| `source_stale` | `true` if the newest `source_updated_at` among the source's rows is not on the run's date (Vietnam time); `false` if it is; empty if the source states no time. Set on successful runs; after a failure it keeps describing the rows still in `latest.csv`. Expect `true` for the stock and the central rate on weekends and holidays |
 
 `blocked_non_vn` sources don't create GitHub Actions warnings; other errors do. A host that doesn't accept a connection (connect timeout, typical of firewalls that drop foreign traffic) is skipped for the rest of the run instead of being retried.
 
@@ -123,6 +139,7 @@ Rows known to be wrong are dropped when the CSV is read (`DATA_CORRECTIONS` in `
 
 | Version | Change |
 |---|---|
+| v3 | Added `source_updated_at` as the 12th (last) column. The first 11 columns are unchanged, in the same order and with the same meaning. A file with the v2 (11-column) or v1 (10-column) header is migrated automatically on the next run, with `source_updated_at` left empty for existing rows. `health.csv` gained a last column, `source_stale`. |
 | v2 | Added `last_checked` as the 11th (last) column. The first 10 columns are unchanged. Readers that select columns by name, or by position 1–10, keep working. A file with the old 10-column header is migrated automatically on the next run, with `last_checked` set to `timestamp`. |
 | v1 | Initial 10 columns. |
 
