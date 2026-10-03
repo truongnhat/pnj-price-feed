@@ -1,0 +1,4 @@
+{"data": [{"code": "PNJ", "date": "2026-10-02", "time": "15:00:00", "floor": "HOSE",
+  "basicPrice": 97.2, "open": 97.2, "high": 98.8, "low": 96.9, "close": 98.5,
+  "average": 98.1, "nmVolume": 1234500, "nmValue": 121100000000, "ptVolume": 0}],
+ "currentPage": 1, "size": 1, "totalElements": 1500}

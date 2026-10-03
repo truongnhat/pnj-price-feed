@@ -1,0 +1,4 @@
+{"ticker": "PNJ", "data": [
+  {"open": 97200, "high": 98800, "low": 96900, "close": 98500, "volume": 1234500, "tradingDate": "2026-10-02T00:00:00.000Z"},
+  {"open": 96000, "high": 97500, "low": 95800, "close": 97200, "volume": 987600, "tradingDate": "2026-10-01T00:00:00.000Z"}
+]}
