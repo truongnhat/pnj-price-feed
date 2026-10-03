@@ -1,13 +1,13 @@
 source,status,last_success,last_error,error_msg
-SJC (sjc.com.vn),blocked_non_vn,,2026-10-03T15:20:06+07:00,"POST https://sjc.com.vn/GoldPrice/Services/PriceService.ashx: HTTP 403 (host refuses this IP, likely non-Vietnam)"
-SJC via vnappmob.com,ok,2026-10-03T15:20:06+07:00,,
-PNJ gold,ok,2026-10-03T15:20:06+07:00,,
-DOJI gold,ok,2026-10-03T15:20:06+07:00,,
-BTMC gold,ok,2026-10-03T15:20:06+07:00,,
-BTMH gold,ok,2026-10-03T15:20:06+07:00,,
-Phú Quý gold,ok,2026-10-03T15:20:06+07:00,,
-Vietcombank,ok,2026-10-03T15:20:06+07:00,,
-SBV central rate,error,,2026-10-03T15:20:06+07:00,"sbv.gov.vn: GET https://www.sbv.gov.vn/TyGia/faces/TyGiaTrungTam.jspx failed: 404 Client Error: Not Found for url: https://sbv.gov.vn/vi/TyGia/faces/TyGiaTrungTam.jspx | webgia.com: no central rate found, body '404' | tygiausd.org: no central rate found, body '<!DOCTYPE html>\r\n<html>\r\n<head>\r\n <meta charset=""utf-8"" />\r\n <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">\r\n <meta content=""/favicon.ico"" itemprop=""image"">\r\n <title>Tỷ giá USD chợ đen, giá đô hôm nay 03"
-Metals spot,ok,2026-10-03T15:20:06+07:00,,
-PNJ stock,error,,2026-10-03T15:20:06+07:00,"tcbs.com.vn: GET https://apipubaws.tcbs.com.vn/stock-insight/v1/stock/bars-long-term failed: 404 Client Error: Not Found for url: https://apipubaws.tcbs.com.vn/stock-insight/v1/stock/bars-long-term?ticker=PNJ&type=stock&resolution=D&from=1789719625&to=1791015625 | vndirect.com.vn: GET https://finfo-api.vndirect.com.vn/v4/stock_prices failed: HTTPSConnectionPool(host='finfo-api.vndirect.com.vn', port=443): Max retries exceeded with url: /v4/stock_prices?q=code%3APNJ&sort=date&size=1 (Caused by Co"
-PNJ foreign trading,ok,2026-10-03T15:20:06+07:00,,
+SJC (sjc.com.vn),blocked_non_vn,,2026-10-03T15:30:31+07:00,"POST https://sjc.com.vn/GoldPrice/Services/PriceService.ashx: HTTP 403 (host refuses this IP, likely non-Vietnam)"
+SJC via vnappmob.com,ok,2026-10-03T15:30:31+07:00,,
+PNJ gold,ok,2026-10-03T15:30:31+07:00,,
+DOJI gold,ok,2026-10-03T15:30:31+07:00,,
+BTMC gold,ok,2026-10-03T15:30:31+07:00,,
+BTMH gold,ok,2026-10-03T15:30:31+07:00,,
+Phú Quý gold,ok,2026-10-03T15:30:31+07:00,,
+Vietcombank,ok,2026-10-03T15:30:31+07:00,,
+SBV central rate,error,,2026-10-03T15:30:31+07:00,"sbv.gov.vn: no central rate found, body '\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\t\n\t\t\n\t\t\n\t\t\t<!DOCTYPE html>\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n<html class=""ltr"" dir=""ltr"" lang=""vi-VN"">\n\n<head>\n\t<title>Trang Chủ - Ngân hàng Nhà nước Việt Nam</title>\n\n\t<meta content=""initial-scale=1.0, width=device-width"" name=""viewport"" />' | sbv.gov.vn: no central rate found, body '\n"
+Metals spot,ok,2026-10-03T15:30:31+07:00,,
+PNJ stock,ok,2026-10-03T15:30:31+07:00,2026-10-03T15:20:06+07:00,"tcbs.com.vn: GET https://apipubaws.tcbs.com.vn/stock-insight/v1/stock/bars-long-term failed: 404 Client Error: Not Found for url: https://apipubaws.tcbs.com.vn/stock-insight/v1/stock/bars-long-term?ticker=PNJ&type=stock&resolution=D&from=1789719625&to=1791015625 | vndirect.com.vn: GET https://finfo-api.vndirect.com.vn/v4/stock_prices failed: HTTPSConnectionPool(host='finfo-api.vndirect.com.vn', port=443): Max retries exceeded with url: /v4/stock_prices?q=code%3APNJ&sort=date&size=1 (Caused by Co"
+PNJ foreign trading,ok,2026-10-03T15:30:31+07:00,,
