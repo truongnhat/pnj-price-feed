@@ -2,7 +2,7 @@
 
 ## Tóm tắt (tiếng Việt)
 
-Feed giá thị trường công khai, tự cập nhật **mỗi giờ** (phút 17) bằng GitHub Actions và xuất ra file CSV để AI agent, Power BI hay script đọc trực tiếp từ link raw GitHub.
+Feed giá thị trường công khai, tự cập nhật **mỗi giờ** (phút 17) và ngay sau mỗi lần merge code, bằng GitHub Actions và xuất ra file CSV để AI agent, Power BI hay script đọc trực tiếp từ link raw GitHub.
 
 **Nội dung**
 - **Giá vàng trong nước:** SJC, PNJ, DOJI, Bảo Tín Minh Châu (`BTMC`), Bảo Tín Mạnh Hải (`BTMH`) và Phú Quý. Lấy vàng miếng và nhẫn 999.9, thêm các dòng "nguyên liệu", "vàng thị trường" và "thương hiệu khác" nếu nguồn có. Giá luôn quy về **VND/lượng**.
@@ -140,7 +140,7 @@ Exit code is `0` if at least one source succeeded and `1` if every source failed
 
 The workflow is `.github/workflows/update_prices.yml`:
 
-1. **Triggers:** runs hourly at minute 17 UTC (`cron: "17 * * * *"`). You can also run it by hand from **Actions → Update prices → Run workflow** (`workflow_dispatch`).
+1. **Triggers:** runs hourly at minute 17 UTC (`cron: "17 * * * *"`), and right after a change to `scripts/`, `tests/`, `requirements.txt` or the workflow is merged into `main`, so fixes show up in `data/` immediately. You can also run it by hand from **Actions → Update prices → Run workflow** (`workflow_dispatch`). The bot's own data commits don't trigger it.
 2. Checks out the repository, sets up Python 3.12 and installs `requirements.txt`.
 3. Runs the offline unit tests. If they fail, nothing is fetched or committed.
 4. Runs `scripts/fetch_prices.py`.

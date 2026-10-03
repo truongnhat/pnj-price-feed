@@ -6,6 +6,17 @@ on:
     # scheduler congestion; scheduled runs can still be delayed by a few minutes.
     - cron: "17 * * * *"
   workflow_dispatch:
+  # Run right after a code change is merged, so a fix shows up in data/ at once
+  # instead of at the next hourly run. The bot's own data commits use
+  # GITHUB_TOKEN, which never triggers workflows, and data/ is not a watched
+  # path, so this cannot loop.
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**"
+      - "tests/**"
+      - "requirements.txt"
+      - ".github/workflows/update_prices.yml"
 
 # Only this workflow's own commits need write access.
 permissions:
