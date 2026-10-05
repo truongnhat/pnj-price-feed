@@ -164,12 +164,23 @@ The workflow is `.github/workflows/update_prices.yml`:
 3. Runs the offline unit tests. If they fail, nothing is fetched or committed.
 4. Runs `scripts/fetch_prices.py`.
 5. Commits `data/prices.csv`, `data/latest.csv` and `data/health.csv` **only if they changed**, then pushes. If the push is rejected, it rebases and retries. Because `health.csv`'s `last_checked` is stamped on every run, even when no price changed or every source failed, each run makes one small commit. If every source fails, the prices' `last_checked` values stop moving; that is the signal. If `health.csv`'s `last_checked` is more than about 2 hours old, runs are being missed.
+6. Emails a short run report (result, time in UTC+7, sources ok/failed, link to the run) after **every** run, even a failed one. See [Email report](#email-report).
 
 Permissions and safety:
-- The only permission is `contents: write`, granted to the built-in `GITHUB_TOKEN` so the workflow can push. It needs no secrets or API keys.
+- The only permission is `contents: write`, granted to the built-in `GITHUB_TOKEN` so the workflow can push. Fetching prices needs no secrets or API keys; only the optional email report below uses GitHub secrets.
 - `concurrency: update-prices` stops two runs from pushing at the same time.
 - If the repository's default branch is protected so that direct pushes are blocked, allow `github-actions[bot]` to push, or change the workflow to open PRs instead.
 - GitHub turns off scheduled workflows in public repositories after 60 days with no repository activity. If that happens, re-enable the workflow from the Actions tab.
+
+### Email report
+
+The last step (`scripts/notify_email.py`) emails a plain-text report after each run, in Vietnam time (UTC+7). Subject example: `[pnj-price-feed] OK 2026-10-05 17:47 (UTC+7) - 11/12 sources ok`. Setup with Gmail:
+
+1. Turn on 2-Step Verification for the Google account, then create an **App Password** at <https://myaccount.google.com/apppasswords>.
+2. In the repository: **Settings → Secrets and variables → Actions → New repository secret**, add `MAIL_USERNAME` (the Gmail address), `MAIL_PASSWORD` (the App Password) and `MAIL_TO` (recipient; defaults to `MAIL_USERNAME`). The address is kept in secrets, not in the workflow file, so it stays out of this public repository and its logs.
+3. Optional: under **Variables**, set `EMAIL_NOTIFY` to `failure` (only failed runs) or `off`. The default is `always`.
+
+Without the secrets the report is only printed in the run log. A failed send shows as a warning and never fails the run. Expect up to about 3 emails an hour (cron at minutes 17 and 47, plus the Apps Script trigger); a Gmail filter on `[pnj-price-feed] OK` keeps them out of the inbox.
 
 ## Access the raw CSV
 
