@@ -18,8 +18,11 @@ Output files (UTF-8, no BOM, comma-separated, "\n" line endings):
                       otherwise only that row's last_checked is refreshed.
   - data/latest.csv : the latest row per key (same schema).
   - data/health.csv : one row per source: status, last_success, last_error,
-                      error_msg. status=blocked_non_vn when every provider
-                      refused the request (HTTP 403/451).
+                      error_msg, source_stale, last_checked. status=blocked_non_vn
+                      when every provider refused the request (HTTP 403/451).
+                      last_checked is stamped on every run, whatever the outcome
+                      and even when no price changed, so it doubles as the
+                      workflow's heartbeat.
 
 Columns 1-11 are unchanged since v2. Column 12, source_updated_at, holds the
 time the source itself states (empty when it states none; the run time is
@@ -83,7 +86,8 @@ DATA_DIR = Path(os.environ.get("PRICE_FEED_DATA_DIR", ROOT / "data"))
 PRICES_CSV = DATA_DIR / "prices.csv"
 LATEST_CSV = DATA_DIR / "latest.csv"
 HEALTH_CSV = DATA_DIR / "health.csv"
-HEALTH_COLUMNS = ["source", "status", "last_success", "last_error", "error_msg", "source_stale"]
+HEALTH_COLUMNS = ["source", "status", "last_success", "last_error", "error_msg", "source_stale",
+                  "last_checked"]  # appended last: positional readers are unaffected
 
 TIMEOUT = (10, 25)  # connect, read (seconds)
 RETRIES = 3
@@ -1376,8 +1380,9 @@ def write_health(path: Path, health: dict[str, dict]) -> None:
 def update_health(previous: dict | None, name: str, ts: str, error: Exception | None,
                   stale: str = "") -> dict:
     """ok -> refresh last_success and source_stale; failure -> refresh last_error and
-    error_msg (source_stale keeps describing the rows still in latest.csv)."""
-    row = {c: "" for c in HEALTH_COLUMNS} | (previous or {}) | {"source": name}
+    error_msg (source_stale keeps describing the rows still in latest.csv).
+    last_checked is refreshed either way."""
+    row = {c: "" for c in HEALTH_COLUMNS} | (previous or {}) | {"source": name, "last_checked": ts}
     if error is None:
         row["status"], row["last_success"], row["source_stale"] = "ok", ts, stale
     else:
