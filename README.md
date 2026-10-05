@@ -2,7 +2,7 @@
 
 ## Tóm tắt (tiếng Việt)
 
-Feed giá thị trường công khai, tự cập nhật **mỗi giờ** (phút 17) và ngay sau mỗi lần merge code, bằng GitHub Actions và xuất ra file CSV để AI agent, Power BI hay script đọc trực tiếp từ link raw GitHub.
+Feed giá thị trường công khai, tự cập nhật **mỗi giờ** (phút 17, dự phòng phút 47; có thể thêm trigger ngoài bằng Google Apps Script, xem [`apps_script/`](apps_script/README.md)) và ngay sau mỗi lần merge code, bằng GitHub Actions và xuất ra file CSV để AI agent, Power BI hay script đọc trực tiếp từ link raw GitHub.
 
 **Nội dung**
 - **Giá vàng trong nước:** SJC, PNJ, DOJI, Bảo Tín Minh Châu (`BTMC`), Bảo Tín Mạnh Hải (`BTMH`) và Phú Quý. Lấy vàng miếng và nhẫn 999.9, thêm các dòng "nguyên liệu", "vàng thị trường" và "thương hiệu khác" nếu nguồn có. Giá luôn quy về **VND/lượng**.
@@ -16,7 +16,7 @@ Feed giá thị trường công khai, tự cập nhật **mỗi giờ** (phút 1
 |---|---|
 | `data/latest.csv` | Giá mới nhất, mỗi sản phẩm 1 dòng. **Agent nên đọc file này** |
 | `data/prices.csv` | Lịch sử: chỉ thêm dòng mới khi giá thay đổi |
-| `data/health.csv` | Tình trạng từng nguồn: `ok`, `error` hoặc `blocked_non_vn` (nguồn chặn IP nước ngoài), kèm `source_stale` |
+| `data/health.csv` | Tình trạng từng nguồn: `ok`, `error` hoặc `blocked_non_vn` (nguồn chặn IP nước ngoài), kèm `source_stale` và `last_checked` (giờ chạy gần nhất, cập nhật mọi lần chạy kể cả khi giá không đổi) |
 
 **Quy tắc đọc dữ liệu**
 - Schema 12 cột cố định. `timestamp` là lần đầu thấy mức giá đó; `last_checked` là lần gần nhất nguồn xác nhận giá còn đúng; `source_updated_at` là giờ cập nhật do **chính nguồn công bố**. Nguồn không công bố giờ thì cột này để trống, không bao giờ lấy giờ chạy thay vào.
@@ -128,6 +128,7 @@ Prices quoted in thousand VND are converted to VND per share.
 | `last_error` | Vietnam time of the last failed run |
 | `error_msg` | Message from that last failure, listing each provider tried (it can be older than `last_success`) |
 | `source_stale` | `true` if the newest `source_updated_at` among the source's rows is not on the run's date (Vietnam time); `false` if it is; empty if the source states no time. Set on successful runs; after a failure it keeps describing the rows still in `latest.csv`. Expect `true` for the stock and the central rate on weekends and holidays |
+| `last_checked` | Vietnam time of the latest run, stamped for every source on every run whatever its status, even when no price changed. A heartbeat: if it is more than about 2 hours old, workflow runs are being missed |
 
 `blocked_non_vn` sources don't create GitHub Actions warnings; other errors do. A host that doesn't accept a connection (connect timeout, typical of firewalls that drop foreign traffic) is skipped for the rest of the run instead of being retried.
 
@@ -139,6 +140,7 @@ Rows known to be wrong are dropped when the CSV is read (`DATA_CORRECTIONS` in `
 
 | Version | Change |
 |---|---|
+| v3.1 | `health.csv` gained a last column, `last_checked`. `prices.csv` and `latest.csv` are unchanged. An older `health.csv` is upgraded on the next run. |
 | v3 | Added `source_updated_at` as the 12th (last) column. The first 11 columns are unchanged, in the same order and with the same meaning. A file with the v2 (11-column) or v1 (10-column) header is migrated automatically on the next run, with `source_updated_at` left empty for existing rows. `health.csv` gained a last column, `source_stale`. |
 | v2 | Added `last_checked` as the 11th (last) column. The first 10 columns are unchanged. Readers that select columns by name, or by position 1–10, keep working. A file with the old 10-column header is migrated automatically on the next run, with `last_checked` set to `timestamp`. |
 | v1 | Initial 10 columns. |
@@ -157,11 +159,11 @@ Exit code is `0` if at least one source succeeded and `1` if every source failed
 
 The workflow is `.github/workflows/update_prices.yml`:
 
-1. **Triggers:** runs hourly at minute 17 UTC (`cron: "17 * * * *"`), and right after a change to `scripts/`, `tests/`, `requirements.txt` or the workflow is merged into `main`, so fixes show up in `data/` immediately. You can also run it by hand from **Actions → Update prices → Run workflow** (`workflow_dispatch`). The bot's own data commits don't trigger it.
+1. **Triggers:** runs hourly at minute 17 UTC (`cron: "17 * * * *"`) with a backup slot at minute 47 (`cron: "47 * * * *"`), because GitHub drops many scheduled runs under load. It also runs right after a change to `scripts/`, `tests/`, `requirements.txt` or the workflow is merged into `main`, so fixes show up in `data/` immediately. You can also run it by hand from **Actions → Update prices → Run workflow** (`workflow_dispatch`), or from an external scheduler: [`apps_script/`](apps_script/README.md) has a Google Apps Script that calls `workflow_dispatch` every hour. The bot's own data commits don't trigger it.
 2. Checks out the repository, sets up Python 3.12 and installs `requirements.txt`.
 3. Runs the offline unit tests. If they fail, nothing is fetched or committed.
 4. Runs `scripts/fetch_prices.py`.
-5. Commits `data/prices.csv`, `data/latest.csv` and `data/health.csv` **only if they changed**, then pushes. If the push is rejected, it rebases and retries. Because `last_checked` moves forward on every successful run, expect one small commit per hourly run. If every source fails, the files are unchanged and nothing is committed; the stale `last_checked` values are themselves the signal.
+5. Commits `data/prices.csv`, `data/latest.csv` and `data/health.csv` **only if they changed**, then pushes. If the push is rejected, it rebases and retries. Because `health.csv`'s `last_checked` is stamped on every run, even when no price changed or every source failed, each run makes one small commit. If every source fails, the prices' `last_checked` values stop moving; that is the signal. If `health.csv`'s `last_checked` is more than about 2 hours old, runs are being missed.
 
 Permissions and safety:
 - The only permission is `contents: write`, granted to the built-in `GITHUB_TOKEN` so the workflow can push. It needs no secrets or API keys.

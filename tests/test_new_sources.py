@@ -283,8 +283,26 @@ class HealthTests(unittest.TestCase):
                               health["A"]["last_error"]), ("error", t1, t2))
             self.assertEqual((health["B"]["status"], health["B"]["last_success"],
                               health["B"]["last_error"]), ("ok", t2, t1))
+            # last_checked moves on every run, whatever each source's outcome.
+            self.assertEqual({r["last_checked"] for r in health.values()}, {t2})
             with (Path(d) / "health.csv").open(encoding="utf-8") as fh:
                 self.assertEqual(fh.readline().strip(), ",".join(fp.HEALTH_COLUMNS))
+
+    def test_health_last_checked_moves_when_prices_do_not(self):
+        ok = lambda ts: fp.parse_central_rate(fixture("sbv_central.html"), "sbv.gov.vn", ts)  # noqa: E731
+        t1, t2 = TS, "2026-10-03T16:17:05+07:00"
+        with tempfile.TemporaryDirectory() as d:
+            # A health.csv written before last_checked existed is upgraded in place.
+            (Path(d) / "health.csv").write_text(
+                ",".join(fp.HEALTH_COLUMNS[:-1]) + "\nA,ok,x,,,false\n", encoding="utf-8")
+            self.run_main({"A": ok}, d, t1)
+            prices = (Path(d) / "p.csv").read_text(encoding="utf-8")
+            code, health, _ = self.run_main({"A": ok}, d, t2)
+            self.assertEqual(code, 0)
+            # Same price, so no new history row, but health.csv still records the check.
+            self.assertEqual(len((Path(d) / "p.csv").read_text(encoding="utf-8").splitlines()),
+                             len(prices.splitlines()))
+            self.assertEqual((health["A"]["last_checked"], health["A"]["last_success"]), (t2, t2))
 
     def test_http_403_raises_blocked(self):
         resp = mock.Mock(status_code=403)

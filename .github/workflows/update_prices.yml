@@ -5,6 +5,12 @@ on:
     # Hourly at minute 17 (UTC). Off the top of the hour to avoid GitHub's
     # scheduler congestion; scheduled runs can still be delayed by a few minutes.
     - cron: "17 * * * *"
+    # Backup slot half an hour later: GitHub silently drops many scheduled runs
+    # under load, so a second slot keeps the feed fresh when the first is lost.
+    # When both fire, the concurrency group below runs them one after the other.
+    # An external trigger (apps_script/trigger.gs) can also call
+    # workflow_dispatch, which GitHub does not drop.
+    - cron: "47 * * * *"
   workflow_dispatch:
   # Run right after a code change is merged, so a fix shows up in data/ at once
   # instead of at the next hourly run. The bot's own data commits use
@@ -54,7 +60,9 @@ jobs:
         run: python scripts/fetch_prices.py
 
       # Runs even when the fetch step fails (every source down), so health.csv
-      # still records the failures. If the tests failed, no files changed.
+      # still records the failures. Every fetch run stamps last_checked in
+      # health.csv, so there is always a commit, even when no price changed.
+      # If the tests failed, no files changed.
       - name: Commit and push if changed
         if: ${{ !cancelled() }}
         run: |
