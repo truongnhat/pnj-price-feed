@@ -54,9 +54,11 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run tests
+        id: tests
         run: python -m unittest discover -s tests
 
       - name: Fetch prices
+        id: fetch
         run: python scripts/fetch_prices.py
 
       # Runs even when the fetch step fails (every source down), so health.csv
@@ -64,6 +66,7 @@ jobs:
       # health.csv, so there is always a commit, even when no price changed.
       # If the tests failed, no files changed.
       - name: Commit and push if changed
+        id: commit
         if: ${{ !cancelled() }}
         run: |
           git config user.name "github-actions[bot]"
@@ -73,12 +76,36 @@ jobs:
             echo "No price changes."
             exit 0
           fi
+          # New history rows = lines added minus lines changed in place (last_checked).
+          git diff --cached --numstat data/prices.csv \
+            | awk '{print "new_rows=" ($1 - $2)}' >> "$GITHUB_OUTPUT"
           git commit -m "data: update prices $(TZ=Asia/Ho_Chi_Minh date -Iseconds)"
           for attempt in 1 2 3; do
-            if git push; then exit 0; fi
+            if git push; then echo "committed=true" >> "$GITHUB_OUTPUT"; exit 0; fi
             echo "Push failed (attempt $attempt), rebasing on remote and retrying..."
             git pull --rebase
             sleep $((attempt * 5))
           done
           echo "::error::Could not push price update after 3 attempts"
           exit 1
+
+      # Emails a short report after every run, whatever the outcome. Needs the
+      # MAIL_USERNAME / MAIL_PASSWORD (and optionally MAIL_TO) secrets; without
+      # them it only prints the report. Repository variable EMAIL_NOTIFY
+      # = always (default) | failure | off.
+      - name: Email run report
+        if: ${{ always() }}
+        env:
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          EMAIL_NOTIFY: ${{ vars.EMAIL_NOTIFY }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EVENT: ${{ github.event_name }}
+          TESTS: ${{ steps.tests.outcome }}
+          FETCH: ${{ steps.fetch.outcome }}
+          COMMIT: ${{ steps.commit.outcome }}
+          COMMITTED: ${{ steps.commit.outputs.committed }}
+          NEW_ROWS: ${{ steps.commit.outputs.new_rows }}
+        # python3 is the runner's own Python, so this works even if setup-python failed.
+        run: python3 scripts/notify_email.py
