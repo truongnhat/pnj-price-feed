@@ -1,13 +1,13 @@
 source,status,last_success,last_error,error_msg,source_stale,last_checked
-SJC (sjc.com.vn),blocked_non_vn,,2026-10-07T14:12:43+07:00,"POST https://sjc.com.vn/GoldPrice/Services/PriceService.ashx: HTTP 403 (host refuses this IP, likely non-Vietnam)",,2026-10-07T14:12:43+07:00
-SJC via vnappmob.com,ok,2026-10-07T14:12:43+07:00,,,false,2026-10-07T14:12:43+07:00
-PNJ gold,ok,2026-10-07T14:12:43+07:00,,,false,2026-10-07T14:12:43+07:00
-DOJI gold,ok,2026-10-07T14:12:43+07:00,,,false,2026-10-07T14:12:43+07:00
-BTMC gold,ok,2026-10-07T14:12:43+07:00,,,false,2026-10-07T14:12:43+07:00
-BTMH gold,ok,2026-10-07T14:12:43+07:00,,,false,2026-10-07T14:12:43+07:00
-Phú Quý gold,ok,2026-10-07T14:12:43+07:00,,,false,2026-10-07T14:12:43+07:00
-Vietcombank,ok,2026-10-07T14:12:43+07:00,,,false,2026-10-07T14:12:43+07:00
-SBV central rate,ok,2026-10-07T14:12:43+07:00,2026-10-03T15:44:47+07:00,sbv.gov.vn: no central rate found; page text: 'rong tuần Thông cáo báo chí khác Tỷ giá trung tâm Tỷ giá tham khảo tại giữa đồng Việt Nam và các loại ngoại tệ tại Cục Quản lý ngoại hối Tỷ giá tính chéo của Đồng Việt Nam với một số ngoại tệ để xác đ || rong tuần Thông cáo báo chí khác Tỷ giá trung tâm Tỷ giá tham khảo tại giữa đồng Việt Nam và các loại ngoại tệ tại Cục Quản lý ngoại hối Tỷ giá tính chéo của Đồng Việt Nam với một số ngoại tệ để xác đ || IV của Đảng Xem tất cả Diễn biến tỷ giá trung,false,2026-10-07T14:12:43+07:00
-Metals spot,ok,2026-10-07T14:12:43+07:00,,,false,2026-10-07T14:12:43+07:00
-PNJ stock,ok,2026-10-07T14:12:43+07:00,2026-10-03T15:20:06+07:00,"tcbs.com.vn: GET https://apipubaws.tcbs.com.vn/stock-insight/v1/stock/bars-long-term failed: 404 Client Error: Not Found for url: https://apipubaws.tcbs.com.vn/stock-insight/v1/stock/bars-long-term?ticker=PNJ&type=stock&resolution=D&from=1789719625&to=1791015625 | vndirect.com.vn: GET https://finfo-api.vndirect.com.vn/v4/stock_prices failed: HTTPSConnectionPool(host='finfo-api.vndirect.com.vn', port=443): Max retries exceeded with url: /v4/stock_prices?q=code%3APNJ&sort=date&size=1 (Caused by Co",false,2026-10-07T14:12:43+07:00
-PNJ foreign trading,ok,2026-10-07T14:12:43+07:00,,,false,2026-10-07T14:12:43+07:00
+SJC (sjc.com.vn),blocked_non_vn,,2026-10-07T20:57:26+07:00,"POST https://sjc.com.vn/GoldPrice/Services/PriceService.ashx: HTTP 403 (host refuses this IP, likely non-Vietnam)",,2026-10-07T20:57:26+07:00
+SJC via vnappmob.com,ok,2026-10-07T20:57:26+07:00,,,false,2026-10-07T20:57:26+07:00
+PNJ gold,ok,2026-10-07T20:57:26+07:00,,,false,2026-10-07T20:57:26+07:00
+DOJI gold,ok,2026-10-07T20:57:26+07:00,,,false,2026-10-07T20:57:26+07:00
+BTMC gold,ok,2026-10-07T20:57:26+07:00,,,false,2026-10-07T20:57:26+07:00
+BTMH gold,ok,2026-10-07T20:57:26+07:00,,,false,2026-10-07T20:57:26+07:00
+Phú Quý gold,ok,2026-10-07T20:57:26+07:00,,,false,2026-10-07T20:57:26+07:00
+Vietcombank,ok,2026-10-07T20:57:26+07:00,,,false,2026-10-07T20:57:26+07:00
+SBV central rate,ok,2026-10-07T20:57:26+07:00,2026-10-03T15:44:47+07:00,sbv.gov.vn: no central rate found; page text: 'rong tuần Thông cáo báo chí khác Tỷ giá trung tâm Tỷ giá tham khảo tại giữa đồng Việt Nam và các loại ngoại tệ tại Cục Quản lý ngoại hối Tỷ giá tính chéo của Đồng Việt Nam với một số ngoại tệ để xác đ || rong tuần Thông cáo báo chí khác Tỷ giá trung tâm Tỷ giá tham khảo tại giữa đồng Việt Nam và các loại ngoại tệ tại Cục Quản lý ngoại hối Tỷ giá tính chéo của Đồng Việt Nam với một số ngoại tệ để xác đ || IV của Đảng Xem tất cả Diễn biến tỷ giá trung,false,2026-10-07T20:57:26+07:00
+Metals spot,ok,2026-10-07T20:57:26+07:00,,,false,2026-10-07T20:57:26+07:00
+PNJ stock,ok,2026-10-07T20:57:26+07:00,2026-10-03T15:20:06+07:00,"tcbs.com.vn: GET https://apipubaws.tcbs.com.vn/stock-insight/v1/stock/bars-long-term failed: 404 Client Error: Not Found for url: https://apipubaws.tcbs.com.vn/stock-insight/v1/stock/bars-long-term?ticker=PNJ&type=stock&resolution=D&from=1789719625&to=1791015625 | vndirect.com.vn: GET https://finfo-api.vndirect.com.vn/v4/stock_prices failed: HTTPSConnectionPool(host='finfo-api.vndirect.com.vn', port=443): Max retries exceeded with url: /v4/stock_prices?q=code%3APNJ&sort=date&size=1 (Caused by Co",false,2026-10-07T20:57:26+07:00
+PNJ foreign trading,ok,2026-10-07T20:57:26+07:00,,,false,2026-10-07T20:57:26+07:00
