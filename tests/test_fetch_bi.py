@@ -125,6 +125,62 @@ class TestBiFeed(unittest.TestCase):
         self.assertEqual([r["url"] for r in out], ["u3", "u1"])
         self.assertEqual(out[1]["timestamp"], "2026-10-11T10:00:00+07:00")
 
+    def test_stale_title_flag(self):
+        self.assertTrue(fb.stale_title("Fabric September 2026 Feature Summary", "2026-10-12T23:56:01+07:00"))
+        self.assertFalse(fb.stale_title("Fabric October 2026 Feature Summary", "2026-10-12T23:56:01+07:00"))
+        self.assertFalse(fb.stale_title("Custom SQL Pools GA", "2026-10-12T22:00:00+07:00"))
+        row = fb.annotate({"title": "Power BI September 2026 Feature Summary", "pub_date": "2026-10-09T01:20:42+07:00",
+                           "category": "new"})
+        self.assertEqual(row["flags"], "stale_title")
+        self.assertEqual(row["region"], "")
+
+    def test_job_region(self):
+        self.assertEqual(fb.job_region("Principal Architect — FPT Asia Pacific Pte Ltd · United States · salary n/a"
+                                       " | join our APAC Architecture team"), "APAC")
+        self.assertEqual(fb.job_region("BI Lead — Acme · Vietnam · n/a"), "VN")
+        self.assertEqual(fb.job_region("Power BI Developer — Tier One · United States · n/a"), "Other")
+        self.assertEqual(fb.job_region("Analyst — Indiana Corp · United States · n/a"), "Other")
+        self.assertEqual(fb.job_region("Analyst — X · Worldwide · n/a"), "Worldwide")
+        row = fb.annotate({"title": "BI Lead — Acme · Singapore · n/a", "pub_date": "2026-10-12T00:00:00+07:00",
+                           "category": "job"})
+        self.assertEqual(row["region"], "APAC")
+
+    def test_has_model_files(self):
+        self.assertTrue(fb.has_model_files({"tree": [{"path": "Sales.SemanticModel/definition/tables/Sales.tmdl"}]}))
+        self.assertTrue(fb.has_model_files({"tree": [{"path": "model/model.bim"}]}))
+        self.assertFalse(fb.has_model_files({"tree": [{"path": "README.md"}, {"path": "app/tmdl_notes.txt"}]}))
+        self.assertFalse(fb.has_model_files({}))
+
+    def test_repo_search_keeps_only_repos_with_model(self):
+        class Resp:
+            def __init__(self, data):
+                self.data = data
+
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return self.data
+
+        search = {"items": [
+            {"full_name": "a/real", "html_url": "https://github.com/a/real", "stargazers_count": 1,
+             "description": "", "pushed_at": "2026-10-10T00:00:00Z"},
+            {"full_name": "b/noise", "html_url": "https://github.com/b/noise", "stargazers_count": 0,
+             "description": "ERP", "pushed_at": "2026-10-10T00:00:00Z"}]}
+
+        class Session:
+            def get(self, url, **kw):
+                if "/search/" in url:
+                    return Resp(search)
+                if "a/real" in url:
+                    return Resp({"tree": [{"path": "x.SemanticModel/definition/model.tmdl"}]})
+                return Resp({"tree": [{"path": "src/main.py"}]})
+
+        rows = fb.fetch_one(Session(), "GitHub TMDL samples",
+                            "https://api.github.com/search/repositories?q=tmdl+{topic}+pushed:>{since}",
+                            "T3", "sample", "gh_repo_search", "2026-10-13T00:00:00+07:00")
+        self.assertEqual([r["url"] for r in rows], ["https://github.com/a/real"])
+
     def test_main_survives_failing_source(self):
         calls = []
 

@@ -9,6 +9,8 @@ Performance,Fallback DirectQuery,fallback|directquery
 Performance,Capacity / CU,\bcu\b|capacity units?|\bf\d{1,3}\b capacity|capacity
 Performance,VertiPaq,vertipaq
 Performance,Refresh,\brefresh
+Performance,Custom SQL Pools,sql pools?\b|workload (isolation|management)
+Performance,Approximate distinct count,approximatedistinctcount|approx\w* distinct
 Governance,CI/CD & Git,ci/?cd|fabric-cicd|\bgit\b|deployment
 Governance,OneLake security,onelake security
 Governance,Purview / catalog,purview|catalog
