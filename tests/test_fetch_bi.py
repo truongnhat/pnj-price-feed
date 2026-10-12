@@ -47,6 +47,38 @@ class TestBiFeed(unittest.TestCase):
         self.assertEqual(rows[0]["pub_date"], "2026-10-03T12:12:00+07:00")
         self.assertIn("Update whats-new", rows[0]["title"])
 
+    def test_repo_search(self):
+        payload = {"items": [{"full_name": "a/b", "html_url": "https://github.com/a/b", "stargazers_count": 3,
+                              "description": "Retail TMDL", "pushed_at": "2026-10-10T00:00:00Z"}]}
+        rows = fb.parse_gh_repo_search(payload, "GitHub TMDL samples", "T3", "sample")
+        self.assertEqual(rows[0]["pub_date"], "2026-10-10T07:00:00+07:00")
+        self.assertEqual(rows[0]["category"], "sample")
+
+    def test_learn_page(self):
+        html = ('<html><head><title>What\'s new in Power BI</title>'
+                '<meta name="updated_at" content="2026-08-25T17:13:00Z"></head></html>')
+        rows = fb.parse_learn_page(html, "Learn: Power BI", "T1", "new", "https://learn/x")
+        self.assertEqual(rows[0]["pub_date"], "2026-08-26T00:13:00+07:00")
+        self.assertEqual(rows[0]["url"], "https://learn/x#updated-2026-08-26")
+        html2 = '<meta name="ms.date" content="08/18/2026">'
+        self.assertEqual(fb.parse_learn_page(html2, "s", "T1", "new", "u")[0]["pub_date"][:10], "2026-08-18")
+
+    def test_candidates_fallback(self):
+        calls = []
+        orig = fb.fetch_one
+
+        def fake_one(session, name, url, tier, category, kind, ts):
+            calls.append(url)
+            if url == "bad":
+                raise RuntimeError("404")
+            return []
+        fb.fetch_one = fake_one
+        try:
+            fb.fetch(None, "n", "bad|good", "T2", "craft", "rss", "2026-10-12T23:00:00+07:00")
+        finally:
+            fb.fetch_one = orig
+        self.assertEqual(calls, ["bad", "good"])
+
     def test_merge_keeps_first_seen_and_drops_old(self):
         now = datetime.fromisoformat("2026-10-12T23:00:00+07:00")
         old = [{"url": "u1", "timestamp": "2026-10-11T10:00:00+07:00", "pub_date": "2026-10-11T09:00:00+07:00",
