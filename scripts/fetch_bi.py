@@ -55,7 +55,8 @@ HEADERS = {
 }
 
 # (name, url, tier, category, kind)
-#   kind: rss | atom | gh_commits | gh_code_search
+#   kind: rss | atom | gh_commits | gh_repo_search | learn_page
+#   A url may hold several candidates separated by "|"; the first that works wins.
 FEEDS: list[tuple[str, str, str, str, str]] = [
     ("Power BI Blog",
      "https://community.fabric.microsoft.com/t5/s/rss/board?board.id=fbc_pbiupdatesblog",
@@ -67,8 +68,8 @@ FEEDS: list[tuple[str, str, str, str, str]] = [
      "https://api.github.com/repos/MicrosoftDocs/fabric-docs/commits?path=docs/fundamentals/whats-new.md&per_page=10",
      "T1", "new", "gh_commits"),
     ("Learn: Power BI latest update",
-     "https://api.github.com/repos/MicrosoftDocs/powerbi-docs/commits?path=powerbi-docs/fundamentals/desktop-latest-update.md&per_page=10",
-     "T1", "new", "gh_commits"),
+     "https://learn.microsoft.com/en-us/power-bi/fundamentals/desktop-latest-update",
+     "T1", "new", "learn_page"),
     ("semantic-link-labs releases",
      "https://github.com/microsoft/semantic-link-labs/releases.atom", "T1", "new", "atom"),
     ("fabric-cicd releases",
@@ -80,14 +81,15 @@ FEEDS: list[tuple[str, str, str, str, str]] = [
     ("SQLBI", "https://www.sqlbi.com/feed/", "T2", "craft", "rss"),
     ("Chris Webb", "https://blog.crossjoin.co.uk/feed/", "T2", "craft", "rss"),
     ("Tabular Editor blog", "https://tabulareditor.com/blog/rss.xml", "T2", "craft", "rss"),
-    ("powerbi.tips", "https://powerbi.tips/feed/", "T2", "craft", "rss"),
+    ("powerbi.tips", "https://powerbi.tips/feed|https://powerbi.tips/rss.xml|https://powerbi.tips/index.xml",
+     "T2", "craft", "rss"),
     ("Guy in a Cube (YouTube)",
      "https://www.youtube.com/feeds/videos.xml?channel_id=UCFp1vaKzpfvoGai0vE5VJ0w",
      "T2", "craft", "atom"),
     ("r/PowerBI top day", "https://www.reddit.com/r/PowerBI/top/.rss?t=day", "T3", "craft", "atom"),
     ("GitHub TMDL samples",
-     "https://api.github.com/search/code?q=extension:tmdl+retail+OR+sales+OR+inventory&sort=indexed&per_page=20",
-     "T3", "sample", "gh_code_search"),
+     "https://api.github.com/search/repositories?q=tmdl+OR+pbip+{topic}+pushed:>{since}&sort=updated&per_page=10",
+     "T3", "sample", "gh_repo_search"),
 ]
 
 ATOM = "{http://www.w3.org/2005/Atom}"
@@ -184,26 +186,57 @@ def parse_gh_commits(payload: list, source: str, tier: str, category: str) -> li
     return out
 
 
-def parse_gh_code_search(payload: dict, source: str, tier: str, category: str, ts: str) -> list[dict]:
-    """Code search gives no file date; use the run date only for repos seen for
-    the first time (handled in merge) — here we tag pub_date with the run time
-    and mark the title so the agent knows the date is the discovery date."""
-    out, seen = [], set()
-    for hit in (payload or {}).get("items", []):
-        repo = (hit.get("repository") or {}).get("full_name", "")
-        if not repo or repo in seen:
-            continue
-        seen.add(repo)
-        url = (hit.get("repository") or {}).get("html_url", "")
-        row = item(source, tier, category, f"[discovered] {repo} — {hit.get('path', '')}", url, ts)
+def parse_gh_repo_search(payload: dict, source: str, tier: str, category: str) -> list[dict]:
+    """Repo search: pub_date = the repo's last push (a real date, unlike code search)."""
+    out = []
+    for r in (payload or {}).get("items", []):
+        desc = r.get("description") or ""
+        row = item(source, tier, category, f"{r.get('full_name', '')} ★{r.get('stargazers_count', 0)} — {desc}",
+                   r.get("html_url", ""), to_vn_iso(r.get("pushed_at", "")))
         if row:
             out.append(row)
     return out
 
 
+def parse_learn_page(markup: str, source: str, tier: str, category: str, url: str) -> list[dict]:
+    """A Learn page as one item dated by its own 'updated_at' metadata; the url
+    carries the date so each page update becomes a new item."""
+    m = (re.search(r'<meta[^>]+name="updated_at"[^>]+content="([^"]+)"', markup)
+         or re.search(r'<meta[^>]+name="ms.date"[^>]+content="([^"]+)"', markup))
+    if not m:
+        return []
+    raw = m.group(1)
+    if re.fullmatch(r"\d{2}/\d{2}/\d{4}", raw):  # ms.date is MM/DD/YYYY
+        mm, dd, yy = raw.split("/")
+        raw = f"{yy}-{mm}-{dd}T00:00:00+00:00"
+    date = to_vn_iso(raw)
+    title = clean(re.search(r"<title>(.*?)</title>", markup, re.S).group(1)) if "<title>" in markup else source
+    row = item(source, tier, category, f"{title} (page updated)", f"{url}#updated-{date[:10]}", date)
+    return [row] if row else []
+
+
 # ---------------------------------------------------------------- fetch
 
 def fetch(session: requests.Session, name, url, tier, category, kind, ts: str) -> list[dict]:
+    last_exc = None
+    for candidate in url.split("|"):
+        try:
+            return fetch_one(session, name, candidate, tier, category, kind, ts)
+        except Exception as exc:  # try the next candidate
+            last_exc = exc
+    raise last_exc
+
+
+def fetch_one(session: requests.Session, name, url, tier, category, kind, ts: str) -> list[dict]:
+    if kind == "gh_repo_search":
+        since = (datetime.fromisoformat(ts) - timedelta(days=KEEP_DAYS)).date().isoformat()
+        rows, seen = [], set()
+        for topic in ("retail", "sales", "inventory"):
+            for r in fetch_one(session, name, url.format(topic=topic, since=since), tier, category, "gh_repo_page", ts):
+                if r["url"] not in seen:
+                    seen.add(r["url"])
+                    rows.append(r)
+        return rows
     headers = dict(HEADERS)
     if kind.startswith("gh_") and os.environ.get("GITHUB_TOKEN"):
         headers["Authorization"] = f"Bearer {os.environ['GITHUB_TOKEN']}"
@@ -216,8 +249,10 @@ def fetch(session: requests.Session, name, url, tier, category, kind, ts: str) -
         return parse_atom(resp.content, name, tier, category)
     if kind == "gh_commits":
         return parse_gh_commits(resp.json(), name, tier, category)
-    if kind == "gh_code_search":
-        return parse_gh_code_search(resp.json(), name, tier, category, ts)
+    if kind == "gh_repo_page":
+        return parse_gh_repo_search(resp.json(), name, tier, category)
+    if kind == "learn_page":
+        return parse_learn_page(resp.text, name, tier, category, url)
     raise ValueError(f"unknown kind {kind}")
 
 
@@ -243,8 +278,6 @@ def merge(old: list[dict], new: list[dict], ts: str, now: datetime) -> list[dict
         prev = by_url.get(r["url"])
         if prev:
             r["timestamp"] = prev.get("timestamp") or ts
-            if r["source"] == "GitHub TMDL samples":
-                r["pub_date"] = prev.get("pub_date") or r["pub_date"]  # keep discovery date
         else:
             r["timestamp"] = ts
         by_url[r["url"]] = r
