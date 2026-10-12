@@ -105,6 +105,10 @@ FEEDS: list[tuple[str, str, str, str, str]] = [
      "T3", "job", "himalayas"),
 ]
 
+# Sources whose rows are re-checked on every run: a successful run replaces
+# their old rows instead of adding to them.
+REPLACE_EACH_RUN = {"GitHub TMDL samples"}
+
 JOB_QUERIES = ["power bi", "microsoft fabric", "data architect", "analytics engineer", "semantic model"]
 
 KEYWORDS = DATA / "bi_keywords.csv"
@@ -449,9 +453,13 @@ def write_csv(path: Path, cols: list[str], rows: list[dict]) -> None:
         w.writerows(rows)
 
 
-def merge(old: list[dict], new: list[dict], ts: str, now: datetime) -> list[dict]:
-    """Keep first-seen timestamp, drop items older than KEEP_DAYS, newest first."""
-    by_url = {r["url"]: r for r in old if r.get("url")}
+def merge(old: list[dict], new: list[dict], ts: str, now: datetime,
+          replace_sources: set[str] | None = None) -> list[dict]:
+    """Keep first-seen timestamp, drop items older than KEEP_DAYS, newest first.
+    Sources in replace_sources are re-verified every run (TMDL samples), so their
+    old rows are dropped unless this run returned them again."""
+    replace_sources = replace_sources or set()
+    by_url = {r["url"]: r for r in old if r.get("url") and r.get("source") not in replace_sources}
     for r in new:
         prev = by_url.get(r["url"])
         if prev:
@@ -493,7 +501,8 @@ def main(feeds=FEEDS, fetcher: Callable = fetch) -> int:
                            "newest_pub_date": "", "error_msg": f"{code} {type(exc).__name__}: {exc}"[:200],
                            "last_checked": ts})
             logging.warning("%s failed: %s", name, exc)
-    latest = merge(read_csv(LATEST), new_rows, ts, now)
+    replace = {h["source"] for h in health if h["status"] == "ok"} & REPLACE_EACH_RUN
+    latest = merge(read_csv(LATEST), new_rows, ts, now, replace)
     write_csv(LATEST, LATEST_COLS, latest)
     write_csv(HEALTH, HEALTH_COLS, health)
     keywords = load_keywords()

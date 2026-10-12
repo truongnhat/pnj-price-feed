@@ -181,6 +181,17 @@ class TestBiFeed(unittest.TestCase):
                             "T3", "sample", "gh_repo_search", "2026-10-13T00:00:00+07:00")
         self.assertEqual([r["url"] for r in rows], ["https://github.com/a/real"])
 
+    def test_merge_replaces_sample_source(self):
+        now = datetime.fromisoformat("2026-10-13T00:00:00+07:00")
+        old = [{"url": "https://github.com/b/noise", "source": "GitHub TMDL samples", "pub_date": "2026-10-12T00:00:00+07:00",
+                "title": "noise", "category": "sample"},
+               {"url": "https://x/news", "source": "Fabric Blog", "pub_date": "2026-10-12T00:00:00+07:00",
+                "title": "news", "category": "new"}]
+        out = fb.merge(old, [], "2026-10-13T00:00:00+07:00", now, {"GitHub TMDL samples"})
+        self.assertEqual([r["url"] for r in out], ["https://x/news"])
+        kept = fb.merge(old, [], "2026-10-13T00:00:00+07:00", now)  # sample source failed: keep old rows
+        self.assertEqual(len(kept), 2)
+
     def test_main_survives_failing_source(self):
         calls = []
 
