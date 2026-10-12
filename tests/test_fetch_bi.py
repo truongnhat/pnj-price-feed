@@ -217,6 +217,19 @@ class TestBiFeed(unittest.TestCase):
         self.assertEqual(rows[0]["title"], "microsoft/powerbi-desktop-samples: Add retail TMDL sample")
         self.assertEqual(rows[0]["category"], "sample")
 
+    def test_summary_feeds_trends(self):
+        rss = b"""<?xml version="1.0"?><rss version="2.0"><channel>
+<item><title>What are Claude Dashboards?</title><link>https://example.com/d</link>
+<pubDate>Mon, 12 Oct 2026 08:00:00 GMT</pubDate>
+<description>&lt;p&gt;Live DAX through a remote MCP connector.&lt;/p&gt;</description></item>
+</channel></rss>"""
+        rows = fb.parse_rss(rss, "Tabular Editor blog", "T2", "craft")
+        self.assertEqual(rows[0]["summary"], "Live DAX through a remote MCP connector.")
+        now = datetime.fromisoformat("2026-10-13T00:00:00+07:00")
+        trends = fb.compute_trends(rows, [{"group": "AI on model", "keyword": "MCP", "pattern": r"\bmcp\b"}],
+                                   now, "ts")
+        self.assertEqual(trends[0]["news_7d"], 1)
+
     def test_main_survives_failing_source(self):
         calls = []
 

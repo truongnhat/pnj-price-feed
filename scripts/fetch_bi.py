@@ -16,6 +16,9 @@ Output files (UTF-8, no BOM, "\n" line endings):
                            status    : preview / ga / deprecated / unknown
                                        (keyword guess from the title; the agent
                                        must confirm it from the source)
+                           summary   : first 300 chars of the item's own
+                                       description (RSS/Atom), for keyword
+                                       matching; empty when the source has none
                            flags     : ";"-joined markers, e.g. stale_title
                                        (the title names a month older than
                                        pub_date: a re-dated old post)
@@ -54,7 +57,7 @@ KEEP_DAYS = 14
 TIMEOUT = 30
 
 LATEST_COLS = ["timestamp", "source", "tier", "title", "url", "pub_date", "category", "status", "flags",
-               "region"]
+               "region", "summary"]
 HEALTH_COLS = ["source", "url", "status", "items", "newest_pub_date", "error_msg", "last_checked"]
 
 HEADERS = {
@@ -222,12 +225,16 @@ def annotate(row: dict) -> dict:
     return row
 
 
-def item(source, tier, category, title, url, pub_date) -> dict | None:
+SUMMARY_LEN = 300
+
+
+def item(source, tier, category, title, url, pub_date, summary: str = "") -> dict | None:
     title = clean(title)
     if not title or not url or not pub_date:
         return None  # never keep an undated item: the agent gates on pub_date
     return {"source": source, "tier": tier, "title": title, "url": url.strip(),
-            "pub_date": pub_date, "category": category, "status": guess_status(title)}
+            "pub_date": pub_date, "category": category, "status": guess_status(title),
+            "summary": clean(summary)[:SUMMARY_LEN]}
 
 
 # ---------------------------------------------------------------- parsers
@@ -238,7 +245,8 @@ def parse_rss(text: str | bytes, source: str, tier: str, category: str) -> list[
     for it in root.iter("item"):
         row = item(source, tier, category,
                    it.findtext("title", ""), it.findtext("link", ""),
-                   to_vn_iso(it.findtext("pubDate", "") or it.findtext("{http://purl.org/dc/elements/1.1/}date", "")))
+                   to_vn_iso(it.findtext("pubDate", "") or it.findtext("{http://purl.org/dc/elements/1.1/}date", "")),
+                   it.findtext("description", ""))
         if row:
             out.append(row)
     return out
@@ -254,7 +262,9 @@ def parse_atom(text: str | bytes, source: str, tier: str, category: str) -> list
                 link = l.get("href", "")
                 break
         date = e.findtext(f"{ATOM}published") or e.findtext(f"{ATOM}updated") or ""
-        row = item(source, tier, category, e.findtext(f"{ATOM}title", ""), link, to_vn_iso(date))
+        summary = (e.findtext(f"{ATOM}summary") or e.findtext(f"{ATOM}content")
+                   or e.findtext("{http://search.yahoo.com/mrss/}group/{http://search.yahoo.com/mrss/}description") or "")
+        row = item(source, tier, category, e.findtext(f"{ATOM}title", ""), link, to_vn_iso(date), summary)
         if row:
             out.append(row)
     return out
@@ -344,7 +354,7 @@ def compute_trends(rows: list[dict], keywords: list[dict], now: datetime, ts: st
             continue
         n7 = p7 = jobs = 0
         for r in rows:
-            if not pat.search(r.get("title", "")):
+            if not pat.search(f"{r.get('title', '')} {r.get('summary', '')}"):
                 continue
             if r.get("category") == "job":
                 jobs += 1
