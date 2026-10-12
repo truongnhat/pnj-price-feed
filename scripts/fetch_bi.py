@@ -9,13 +9,18 @@ Output files (UTF-8, no BOM, "\n" line endings):
   - data/bi_latest.csv : one row per item published in the last KEEP_DAYS days,
                          newest first. Columns:
                          timestamp, source, tier, title, url, pub_date,
-                         category, status
+                         category, status, flags, region
                            timestamp : first time this run saw the item (VN time)
                            tier      : T1 official / T2 expert / T3 community
                            category  : new / craft / sample / job
                            status    : preview / ga / deprecated / unknown
                                        (keyword guess from the title; the agent
                                        must confirm it from the source)
+                           flags     : ";"-joined markers, e.g. stale_title
+                                       (the title names a month older than
+                                       pub_date: a re-dated old post)
+                           region    : job rows only: VN / APAC / Worldwide /
+                                       Other (from locations + JD text)
   - data/bi_trends.csv : keyword counts from data/bi_keywords.csv (news 7d vs
                          previous 7d, jobs 14d), for the agent's Trend Radar.
   - data/bi_health.csv : one row per source: source, url, status, items,
@@ -48,7 +53,8 @@ VN = timezone(timedelta(hours=7))
 KEEP_DAYS = 14
 TIMEOUT = 30
 
-LATEST_COLS = ["timestamp", "source", "tier", "title", "url", "pub_date", "category", "status"]
+LATEST_COLS = ["timestamp", "source", "tier", "title", "url", "pub_date", "category", "status", "flags",
+               "region"]
 HEALTH_COLS = ["source", "url", "status", "items", "newest_pub_date", "error_msg", "last_checked"]
 
 HEADERS = {
@@ -148,6 +154,55 @@ def guess_status(title: str) -> str:
     return "unknown"
 
 
+MONTHS = {m: i for i, m in enumerate(
+    ["january", "february", "march", "april", "may", "june", "july", "august", "september",
+     "october", "november", "december"], 1)}
+TITLE_MONTH = re.compile(r"\b(" + "|".join(MONTHS) + r")\s+(20\d{2})\b", re.I)
+
+
+def stale_title(title: str, pub_date: str) -> bool:
+    """True when the title names a month/year earlier than pub_date's month, e.g.
+    'September 2026 Feature Summary' re-dated to October: an old post, not news."""
+    m = TITLE_MONTH.search(title or "")
+    if not m:
+        return False
+    try:
+        pub = datetime.fromisoformat(pub_date)
+    except (TypeError, ValueError):
+        return False
+    return (int(m.group(2)), MONTHS[m.group(1).lower()]) < (pub.year, pub.month)
+
+
+VN_RE = re.compile(r"viet\s?nam|ho chi minh|hanoi|ha noi|\bhcmc?\b|da nang", re.I)
+APAC_RE = re.compile(r"\b(apac|asia|singapore|malaysia|thailand|indonesia|philippines|hong kong|"
+                     r"australia|new zealand|japan|korea|taiwan|india)\b", re.I)
+WORLD_RE = re.compile(r"\b(worldwide|anywhere)\b", re.I)
+
+
+def job_region(title: str) -> str:
+    """Region of a job row from its 'Title — Company · Locations · Salary | excerpt'
+    text. Himalayas' location field can be wrong (an APAC team listed as United
+    States), so the JD text counts too: VN beats APAC beats Worldwide."""
+    text = title or ""
+    if VN_RE.search(text):
+        return "VN"
+    if APAC_RE.search(text):
+        return "APAC"
+    if WORLD_RE.search(text):
+        return "Worldwide"
+    return "Other"
+
+
+def annotate(row: dict) -> dict:
+    """Fill flags/region (also for rows read back from an older CSV)."""
+    flags = [f for f in (row.get("flags") or "").split(";") if f and f != "stale_title"]
+    if stale_title(row.get("title", ""), row.get("pub_date", "")):
+        flags.append("stale_title")
+    row["flags"] = ";".join(flags)
+    row["region"] = job_region(row.get("title", "")) if row.get("category") == "job" else ""
+    return row
+
+
 def item(source, tier, category, title, url, pub_date) -> dict | None:
     title = clean(title)
     if not title or not url or not pub_date:
@@ -209,6 +264,15 @@ def parse_gh_repo_search(payload: dict, source: str, tier: str, category: str) -
         if row:
             out.append(row)
     return out
+
+
+MODEL_FILE = re.compile(r"(\.tmdl$|\.SemanticModel/|\.SemanticModel$|\.bim$)", re.I)
+
+
+def has_model_files(tree: dict) -> bool:
+    """A real sample ships model text: TMDL files, a PBIP .SemanticModel folder or
+    a model.bim. Repos that only mention 'tmdl/pbip' in words are noise."""
+    return any(MODEL_FILE.search(t.get("path", "")) for t in (tree or {}).get("tree", []))
 
 
 def _epoch_iso(value) -> str:
@@ -317,8 +381,10 @@ def fetch_one(session: requests.Session, name, url, tier, category, kind, ts: st
         rows, seen = [], set()
         for topic in ("retail", "sales", "inventory"):
             for r in fetch_one(session, name, url.format(topic=topic, since=since), tier, category, "gh_repo_page", ts):
-                if r["url"] not in seen:
-                    seen.add(r["url"])
+                if r["url"] in seen:
+                    continue
+                seen.add(r["url"])
+                if repo_has_model(session, r["url"]):
                     rows.append(r)
         return rows
     if kind == "himalayas":
@@ -349,6 +415,23 @@ def fetch_one(session: requests.Session, name, url, tier, category, kind, ts: st
     if kind == "himalayas_page":
         return parse_himalayas(resp.json(), name, tier, category)
     raise ValueError(f"unknown kind {kind}")
+
+
+def repo_has_model(session: requests.Session, html_url: str) -> bool:
+    """Check the default branch tree for model files (one API call per repo).
+    Any error counts as 'no': an unverified repo is never offered as a sample."""
+    full = html_url.rstrip("/").split("github.com/")[-1]
+    headers = dict(HEADERS, Accept="application/vnd.github+json")
+    if os.environ.get("GITHUB_TOKEN"):
+        headers["Authorization"] = f"Bearer {os.environ['GITHUB_TOKEN']}"
+    try:
+        resp = session.get(f"https://api.github.com/repos/{full}/git/trees/HEAD?recursive=1",
+                           headers=headers, timeout=TIMEOUT)
+        resp.raise_for_status()
+        return has_model_files(resp.json())
+    except Exception as exc:
+        logging.info("tree check skipped %s: %s", full, exc)
+        return False
 
 
 def read_csv(path: Path) -> list[dict]:
@@ -385,7 +468,7 @@ def merge(old: list[dict], new: list[dict], ts: str, now: datetime) -> list[dict
         except (ValueError, KeyError):
             continue
     keep.sort(key=lambda r: r["pub_date"], reverse=True)
-    return keep
+    return [annotate(r) for r in keep]
 
 
 def main(feeds=FEEDS, fetcher: Callable = fetch) -> int:
