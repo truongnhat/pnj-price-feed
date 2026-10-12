@@ -177,7 +177,7 @@ class TestBiFeed(unittest.TestCase):
                 return Resp({"tree": [{"path": "src/main.py"}]})
 
         rows = fb.fetch_one(Session(), "GitHub TMDL samples",
-                            "https://api.github.com/search/repositories?q=tmdl+{topic}+pushed:>{since}",
+                            "https://api.github.com/search/repositories?q={query}+pushed:>{since}",
                             "T3", "sample", "gh_repo_search", "2026-10-13T00:00:00+07:00")
         self.assertEqual([r["url"] for r in rows], ["https://github.com/a/real"])
 
@@ -191,6 +191,31 @@ class TestBiFeed(unittest.TestCase):
         self.assertEqual([r["url"] for r in out], ["https://x/news"])
         kept = fb.merge(old, [], "2026-10-13T00:00:00+07:00", now)  # sample source failed: keep old rows
         self.assertEqual(len(kept), 2)
+
+    def test_official_sample_repos(self):
+        class Resp:
+            def __init__(self, data, ok=True):
+                self.data, self.ok = data, ok
+
+            def raise_for_status(self):
+                if not self.ok:
+                    raise RuntimeError("404")
+
+            def json(self):
+                return self.data
+
+        commit = [{"html_url": "https://github.com/microsoft/x/commit/1",
+                   "commit": {"message": "Add retail TMDL sample\nbody", "committer": {"date": "2026-10-12T01:00:00Z"}}}]
+
+        class Session:
+            def get(self, url, **kw):
+                return Resp(commit) if "powerbi-desktop-samples" in url else Resp(None, ok=False)
+
+        rows = fb.fetch_one(Session(), "Microsoft model samples", "https://api.github.com/repos/{repo}/commits",
+                            "T1", "sample", "gh_repo_commits", "2026-10-13T00:00:00+07:00")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["title"], "microsoft/powerbi-desktop-samples: Add retail TMDL sample")
+        self.assertEqual(rows[0]["category"], "sample")
 
     def test_main_survives_failing_source(self):
         calls = []
