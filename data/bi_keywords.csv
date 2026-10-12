@@ -1,0 +1,34 @@
+group,keyword,pattern
+Modelling,Direct Lake,direct\s?lake
+Modelling,TMDL / PBIP,\btmdl\b|\bpbip\b
+Modelling,DAX UDF,dax (udf|user.defined function)|\budf\b
+Modelling,Calculation groups,calculation group
+Modelling,Composite model,composite model
+Modelling,DAX,\bdax\b
+Performance,Fallback DirectQuery,fallback|directquery
+Performance,Capacity / CU,\bcu\b|capacity units?|\bf\d{1,3}\b capacity|capacity
+Performance,VertiPaq,vertipaq
+Performance,Refresh,\brefresh
+Governance,CI/CD & Git,ci/?cd|fabric-cicd|\bgit\b|deployment
+Governance,OneLake security,onelake security
+Governance,Purview / catalog,purview|catalog
+Governance,RLS / OLS,\brls\b|\bols\b|row.level security
+AI on model,MCP,\bmcp\b
+AI on model,Copilot,copilot
+AI on model,Fabric IQ / data agent,fabric iq|data agent
+AI on model,AI agent,\bagents?\b|agentic
+AI on model,Semantic link,semantic.link|\bsempy\b
+AI on model,DAX contract,dax contract
+AI on model,Claude / LLM,claude|\bllm|gpt
+Platform,Semantic model,semantic model
+Platform,Fabric Apps,fabric apps?
+Platform,Writeback / Planning,writeback|write-back|planning
+Retail domain,Inventory / forecasting,inventory|forecast
+Retail domain,Pricing,pricing|price
+Retail domain,Customer 360 / loyalty,customer 360|loyalty|\bcrm\b|segmentation
+Retail domain,Retail,retail
+Career,Data Architect,data architect|solution architect
+Career,Head of Data / CDO,head of data|chief data|\bcdo\b|director of data
+Career,Analytics Engineer,analytics engineer
+Career,Power BI Developer,power bi (developer|engineer|consultant)
+Career,Microsoft Fabric skill,microsoft fabric|\bfabric\b

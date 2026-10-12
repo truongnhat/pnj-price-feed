@@ -79,6 +79,41 @@ class TestBiFeed(unittest.TestCase):
             fb.fetch_one = orig
         self.assertEqual(calls, ["bad", "good"])
 
+    def test_himalayas(self):
+        payload = {"jobs": [{"title": "Power BI Developer", "companyName": "Acme",
+                             "locationRestrictions": ["Singapore"], "minSalary": 90000, "maxSalary": 120000,
+                             "currency": "USD", "excerpt": "<p>DAX, Microsoft Fabric</p>",
+                             "applicationLink": "https://himalayas.app/j/1", "pubDate": 1791095436}]}
+        rows = fb.parse_himalayas(payload, "Himalayas jobs", "T3", "job")
+        self.assertEqual(len(rows), 1)
+        self.assertIn("Acme · Singapore · 90000-120000 USD | DAX, Microsoft Fabric", rows[0]["title"])
+        self.assertTrue(rows[0]["pub_date"].endswith("+07:00"))
+
+    def test_trends(self):
+        now = datetime.fromisoformat("2026-10-13T00:00:00+07:00")
+        rows = [{"title": "Direct Lake tips", "pub_date": "2026-10-12T00:00:00+07:00", "category": "craft"},
+                {"title": "Direct Lake old", "pub_date": "2026-10-02T00:00:00+07:00", "category": "craft"},
+                {"title": "MCP server preview", "pub_date": "2026-10-11T00:00:00+07:00", "category": "new"},
+                {"title": "Data Architect — X | Direct Lake", "pub_date": "2026-10-10T00:00:00+07:00", "category": "job"},
+                {"title": "repo with direct lake", "pub_date": "2026-10-12T00:00:00+07:00", "category": "sample"}]
+        kws = [{"group": "M", "keyword": "Direct Lake", "pattern": r"direct\s?lake"},
+               {"group": "A", "keyword": "MCP", "pattern": r"\bmcp\b"},
+               {"group": "X", "keyword": "bad", "pattern": "("}]
+        out = fb.compute_trends(rows, kws, now, "ts")
+        by = {r["keyword"]: r for r in out}
+        self.assertEqual((by["Direct Lake"]["news_7d"], by["Direct Lake"]["news_prev_7d"],
+                          by["Direct Lake"]["jobs_14d"]), (1, 1, 1))
+        self.assertEqual(by["MCP"]["delta"], 1)
+        self.assertNotIn("bad", by)
+        self.assertEqual(out[0]["keyword"], "MCP")
+
+    def test_keywords_file_valid(self):
+        import re
+        kws = fb.load_keywords()
+        self.assertGreater(len(kws), 20)
+        for k in kws:
+            re.compile(k["pattern"])
+
     def test_merge_keeps_first_seen_and_drops_old(self):
         now = datetime.fromisoformat("2026-10-12T23:00:00+07:00")
         old = [{"url": "u1", "timestamp": "2026-10-11T10:00:00+07:00", "pub_date": "2026-10-11T09:00:00+07:00",
@@ -103,12 +138,15 @@ class TestBiFeed(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as d:
             fb.LATEST, fb.HEALTH = Path(d) / "l.csv", Path(d) / "h.csv"
+            orig_kt = (fb.KEYWORDS, fb.TRENDS)
+            fb.KEYWORDS, fb.TRENDS = Path(d) / "k.csv", Path(d) / "t.csv"
             try:
                 code = fb.main(feeds=[("bad", "u", "T1", "new", "rss"), ("good", "u", "T1", "new", "rss")],
                                fetcher=fake)
                 health = fb.read_csv(fb.HEALTH)
             finally:
                 fb.LATEST, fb.HEALTH = orig
+                fb.KEYWORDS, fb.TRENDS = orig_kt
         self.assertEqual(code, 0)
         self.assertEqual([h["status"] for h in health], ["error", "ok"])
 
