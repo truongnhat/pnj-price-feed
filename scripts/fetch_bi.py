@@ -12,10 +12,12 @@ Output files (UTF-8, no BOM, "\n" line endings):
                          category, status
                            timestamp : first time this run saw the item (VN time)
                            tier      : T1 official / T2 expert / T3 community
-                           category  : new / craft / sample
+                           category  : new / craft / sample / job
                            status    : preview / ga / deprecated / unknown
                                        (keyword guess from the title; the agent
                                        must confirm it from the source)
+  - data/bi_trends.csv : keyword counts from data/bi_keywords.csv (news 7d vs
+                         previous 7d, jobs 14d), for the agent's Trend Radar.
   - data/bi_health.csv : one row per source: source, url, status, items,
                          newest_pub_date, error_msg, last_checked.
 
@@ -90,7 +92,18 @@ FEEDS: list[tuple[str, str, str, str, str]] = [
     ("GitHub TMDL samples",
      "https://api.github.com/search/repositories?q=tmdl+OR+pbip+{topic}+pushed:>{since}&sort=updated&per_page=10",
      "T3", "sample", "gh_repo_search"),
+    # Job Radar: remote/regional jobs (Himalayas public API, no key). Vietnam
+    # boards (ITviec, TopCV) are read by the agent at run time.
+    ("Himalayas jobs",
+     "https://himalayas.app/jobs/api/search?q={query}&limit=20",
+     "T3", "job", "himalayas"),
 ]
+
+JOB_QUERIES = ["power bi", "microsoft fabric", "data architect", "analytics engineer", "semantic model"]
+
+KEYWORDS = DATA / "bi_keywords.csv"
+TRENDS = DATA / "bi_trends.csv"
+TREND_COLS = ["group", "keyword", "news_7d", "news_prev_7d", "delta", "jobs_14d", "last_checked"]
 
 ATOM = "{http://www.w3.org/2005/Atom}"
 
@@ -198,6 +211,77 @@ def parse_gh_repo_search(payload: dict, source: str, tier: str, category: str) -
     return out
 
 
+def _epoch_iso(value) -> str:
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return to_vn_iso(str(value or ""))
+    if v > 1e12:  # milliseconds
+        v /= 1000
+    return datetime.fromtimestamp(v, tz=timezone.utc).astimezone(VN).replace(microsecond=0).isoformat()
+
+
+def parse_himalayas(payload: dict, source: str, tier: str, category: str) -> list[dict]:
+    """Job title row: 'Title — Company · Locations · Salary | skills: excerpt'.
+    The excerpt goes into the title so keyword trends can see the JD skills."""
+    out = []
+    for j in (payload or {}).get("jobs", []):
+        locs = j.get("locationRestrictions") or []
+        if isinstance(locs, list):
+            locs = ", ".join(l if isinstance(l, str) else (l.get("name") or "") for l in locs)
+        loc = locs or "Worldwide"
+        lo, hi, cur = j.get("minSalary"), j.get("maxSalary"), j.get("currency") or ""
+        salary = f"{lo}-{hi} {cur}".strip() if (lo or hi) else "salary n/a"
+        excerpt = clean(j.get("excerpt") or "")[:160]
+        title = f"{j.get('title', '')} — {j.get('companyName', '')} · {loc} · {salary}"
+        if excerpt:
+            title += f" | {excerpt}"
+        url = j.get("applicationLink") or j.get("guid") or ""
+        row = item(source, tier, category, title, url, _epoch_iso(j.get("pubDate")))
+        if row:
+            out.append(row)
+    return out
+
+
+# ---------------------------------------------------------------- trends
+
+def load_keywords(path: Path = None) -> list[dict]:
+    rows = read_csv(path or KEYWORDS)
+    return [r for r in rows if r.get("keyword") and r.get("pattern")]
+
+
+def compute_trends(rows: list[dict], keywords: list[dict], now: datetime, ts: str) -> list[dict]:
+    """Per keyword: news titles in the last 7 days vs the 7 days before, and
+    job rows in the 14-day window. Sorted by delta, then volume."""
+    out = []
+    for k in keywords:
+        try:
+            pat = re.compile(k["pattern"], re.I)
+        except re.error:
+            continue
+        n7 = p7 = jobs = 0
+        for r in rows:
+            if not pat.search(r.get("title", "")):
+                continue
+            if r.get("category") == "job":
+                jobs += 1
+                continue
+            if r.get("category") == "sample":
+                continue
+            try:
+                age = now - datetime.fromisoformat(r["pub_date"])
+            except (ValueError, KeyError):
+                continue
+            if age <= timedelta(days=7):
+                n7 += 1
+            elif age <= timedelta(days=14):
+                p7 += 1
+        out.append({"group": k.get("group", ""), "keyword": k["keyword"], "news_7d": n7, "news_prev_7d": p7,
+                    "delta": n7 - p7, "jobs_14d": jobs, "last_checked": ts})
+    out.sort(key=lambda r: (r["delta"], r["news_7d"] + r["jobs_14d"]), reverse=True)
+    return out
+
+
 def parse_learn_page(markup: str, source: str, tier: str, category: str, url: str) -> list[dict]:
     """A Learn page as one item dated by its own 'updated_at' metadata; the url
     carries the date so each page update becomes a new item."""
@@ -237,6 +321,15 @@ def fetch_one(session: requests.Session, name, url, tier, category, kind, ts: st
                     seen.add(r["url"])
                     rows.append(r)
         return rows
+    if kind == "himalayas":
+        rows, seen = [], set()
+        for q in JOB_QUERIES:
+            for r in fetch_one(session, name, url.format(query=requests.utils.quote(q)), tier, category,
+                               "himalayas_page", ts):
+                if r["url"] not in seen:
+                    seen.add(r["url"])
+                    rows.append(r)
+        return rows
     headers = dict(HEADERS)
     if kind.startswith("gh_") and os.environ.get("GITHUB_TOKEN"):
         headers["Authorization"] = f"Bearer {os.environ['GITHUB_TOKEN']}"
@@ -253,6 +346,8 @@ def fetch_one(session: requests.Session, name, url, tier, category, kind, ts: st
         return parse_gh_repo_search(resp.json(), name, tier, category)
     if kind == "learn_page":
         return parse_learn_page(resp.text, name, tier, category, url)
+    if kind == "himalayas_page":
+        return parse_himalayas(resp.json(), name, tier, category)
     raise ValueError(f"unknown kind {kind}")
 
 
@@ -315,8 +410,12 @@ def main(feeds=FEEDS, fetcher: Callable = fetch) -> int:
                            "newest_pub_date": "", "error_msg": f"{code} {type(exc).__name__}: {exc}"[:200],
                            "last_checked": ts})
             logging.warning("%s failed: %s", name, exc)
-    write_csv(LATEST, LATEST_COLS, merge(read_csv(LATEST), new_rows, ts, now))
+    latest = merge(read_csv(LATEST), new_rows, ts, now)
+    write_csv(LATEST, LATEST_COLS, latest)
     write_csv(HEALTH, HEALTH_COLS, health)
+    keywords = load_keywords()
+    if keywords:
+        write_csv(TRENDS, TREND_COLS, compute_trends(latest, keywords, now, ts))
     logging.info("%d/%d sources ok", ok, len(feeds))
     return 0 if ok else 1
 
