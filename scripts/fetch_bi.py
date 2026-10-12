@@ -96,8 +96,13 @@ FEEDS: list[tuple[str, str, str, str, str]] = [
      "T2", "craft", "atom"),
     ("r/PowerBI top day", "https://www.reddit.com/r/PowerBI/top/.rss?t=day", "T3", "craft", "atom"),
     ("GitHub TMDL samples",
-     "https://api.github.com/search/repositories?q=tmdl+OR+pbip+{topic}+pushed:>{since}&sort=updated&per_page=10",
+     "https://api.github.com/search/repositories?q={query}+pushed:>{since}&sort=updated&per_page=10",
      "T3", "sample", "gh_repo_search"),
+    # Official sample repos: each recent commit = the sample changed that day.
+    ("Microsoft model samples", "https://api.github.com/repos/{repo}/commits?per_page=5",
+     "T1", "sample", "gh_repo_commits"),
+    ("SQLBI samples", "https://api.github.com/repos/{repo}/commits?per_page=5",
+     "T2", "sample", "gh_repo_commits"),
     # Job Radar: remote/regional jobs (Himalayas public API, no key). Vietnam
     # boards (ITviec, TopCV) are read by the agent at run time.
     ("Himalayas jobs",
@@ -108,6 +113,16 @@ FEEDS: list[tuple[str, str, str, str, str]] = [
 # Sources whose rows are re-checked on every run: a successful run replaces
 # their old rows instead of adding to them.
 REPLACE_EACH_RUN = {"GitHub TMDL samples"}
+
+# Sample search is not tied to one industry (retail-only searches found no real
+# model); every hit must still pass the model-file tree check.
+SAMPLE_QUERIES = ["tmdl", "pbip", "SemanticModel", "topic:tmdl", "topic:pbip"]
+
+SAMPLE_REPOS = {
+    "Microsoft model samples": ["microsoft/powerbi-desktop-samples", "microsoft/fabric-samples",
+                                "microsoft/Analysis-Services"],
+    "SQLBI samples": ["sql-bi/Contoso-Data-Generator-V2"],
+}
 
 JOB_QUERIES = ["power bi", "microsoft fabric", "data architect", "analytics engineer", "semantic model"]
 
@@ -383,13 +398,27 @@ def fetch_one(session: requests.Session, name, url, tier, category, kind, ts: st
     if kind == "gh_repo_search":
         since = (datetime.fromisoformat(ts) - timedelta(days=KEEP_DAYS)).date().isoformat()
         rows, seen = [], set()
-        for topic in ("retail", "sales", "inventory"):
-            for r in fetch_one(session, name, url.format(topic=topic, since=since), tier, category, "gh_repo_page", ts):
+        for query in SAMPLE_QUERIES:
+            for r in fetch_one(session, name, url.format(query=requests.utils.quote(query, safe=":"), since=since),
+                               tier, category, "gh_repo_page", ts):
                 if r["url"] in seen:
                     continue
                 seen.add(r["url"])
                 if repo_has_model(session, r["url"]):
                     rows.append(r)
+        return rows
+    if kind == "gh_repo_commits":
+        rows, errors = [], []
+        for repo in SAMPLE_REPOS.get(name, []):
+            try:
+                for r in fetch_one(session, name, url.format(repo=repo), tier, category, "gh_commits", ts):
+                    r["title"] = f"{repo}: " + r["title"].split("updated: ", 1)[-1]
+                    rows.append(r)
+            except Exception as exc:  # one missing repo never hides the others
+                errors.append(f"{repo}: {exc}")
+                logging.warning("%s %s failed: %s", name, repo, exc)
+        if errors and not rows and len(errors) == len(SAMPLE_REPOS.get(name, [])):
+            raise RuntimeError("; ".join(errors)[:180])
         return rows
     if kind == "himalayas":
         rows, seen = [], set()
