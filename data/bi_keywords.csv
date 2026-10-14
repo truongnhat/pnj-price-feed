@@ -6,7 +6,7 @@ Modelling,Calculation groups,calculation group
 Modelling,Composite model,composite model
 Modelling,DAX,\bdax\b
 Performance,Fallback DirectQuery,fallback|directquery
-Performance,Capacity / CU,\bcu\b|capacity units?|\bf\d{1,3}\b capacity|capacity
+Performance,Capacity / CU,"\bcu\b|capacity units?|\bf\d{1,3}\b capacity|capacity"
 Performance,VertiPaq,vertipaq
 Performance,Refresh,\brefresh
 Performance,Custom SQL Pools,sql pools?\b|workload (isolation|management)
@@ -34,3 +34,5 @@ Career,Head of Data / CDO,head of data|chief data|\bcdo\b|director of data
 Career,Analytics Engineer,analytics engineer
 Career,Power BI Developer,power bi (developer|engineer|consultant)
 Career,Microsoft Fabric skill,microsoft fabric|\bfabric\b
+Performance,Throttling,throttl\w*|surge protection|smoothing
+Platform,SSAS / Analysis Services,analysis services|\bssas\b|on-prem|gateway

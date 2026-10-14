@@ -92,6 +92,9 @@ FEEDS: list[tuple[str, str, str, str, str]] = [
     ("SQLBI", "https://www.sqlbi.com/feed/", "T2", "craft", "rss"),
     ("Chris Webb", "https://blog.crossjoin.co.uk/feed/", "T2", "craft", "rss"),
     ("Tabular Editor blog", "https://tabulareditor.com/blog/rss.xml", "T2", "craft", "rss"),
+    ("fabric.guru (Sandeep Pawar)", "https://fabric.guru/rss.xml|https://fabric.guru/feed", "T2", "craft", "rss"),
+    ("kerski.tech (John Kerski)",
+     "https://www.kerski.tech/feed|https://www.kerski.tech/rss.xml|https://kerski.tech/feed", "T2", "craft", "rss"),
     ("powerbi.tips", "https://powerbi.tips/feed|https://powerbi.tips/rss.xml|https://powerbi.tips/index.xml",
      "T2", "craft", "rss"),
     ("Guy in a Cube (YouTube)",
@@ -339,8 +342,18 @@ def parse_himalayas(payload: dict, source: str, tier: str, category: str) -> lis
 # ---------------------------------------------------------------- trends
 
 def load_keywords(path: Path = None) -> list[dict]:
+    """Patterns containing commas must be double-quoted in the CSV; an unquoted
+    comma splits the row and silently truncates the pattern (bug C15)."""
     rows = read_csv(path or KEYWORDS)
-    return [r for r in rows if r.get("keyword") and r.get("pattern")]
+    out = []
+    for r in rows:
+        if r.get(None):
+            logging.warning("keyword %r has extra columns %r: quote patterns containing commas",
+                            r.get("keyword"), r.get(None))
+            continue
+        if r.get("keyword") and r.get("pattern"):
+            out.append(r)
+    return out
 
 
 def compute_trends(rows: list[dict], keywords: list[dict], now: datetime, ts: str) -> list[dict]:
