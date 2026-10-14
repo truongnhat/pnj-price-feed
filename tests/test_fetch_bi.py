@@ -113,6 +113,23 @@ class TestBiFeed(unittest.TestCase):
         self.assertGreater(len(kws), 20)
         for k in kws:
             re.compile(k["pattern"])
+        by = {k["keyword"]: k for k in kws}
+        # C15: a pattern with a comma must survive CSV parsing intact
+        self.assertTrue(re.search(by["Capacity / CU"]["pattern"],
+                                  "A new look in the Capacity Metrics App", re.I))
+        self.assertIn(r"\bf\d{1,3}\b capacity", by["Capacity / CU"]["pattern"])
+        self.assertIn("SSAS / Analysis Services", by)
+        self.assertIn("Throttling", by)
+
+    def test_load_keywords_skips_unquoted_comma_rows(self):
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "k.csv"
+            f.write_text("group,keyword,pattern\nP,Bad,a{1,3}|b\nP,Good,\"a{1,3}|b\"\n", encoding="utf-8")
+            with self.assertLogs(level="WARNING"):
+                kws = fb.load_keywords(f)
+        self.assertEqual([k["keyword"] for k in kws], ["Good"])
+        self.assertEqual(kws[0]["pattern"], "a{1,3}|b")
 
     def test_merge_keeps_first_seen_and_drops_old(self):
         now = datetime.fromisoformat("2026-10-12T23:00:00+07:00")
