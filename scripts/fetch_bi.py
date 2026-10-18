@@ -39,6 +39,7 @@ Exit code: 0 if at least one source worked, 1 if all failed.
 from __future__ import annotations
 
 import csv
+import html
 import json
 import time
 import logging
@@ -192,7 +193,11 @@ def to_vn_iso(value: str) -> str:
 
 
 def clean(text: str) -> str:
-    text = re.sub(r"<[^>]+>", " ", text or "")
+    """Strip tags, decode entities (&amp; -> &), collapse spaces. Entities are
+    decoded twice so escaped HTML (&lt;p&gt;) is also stripped."""
+    text = html.unescape(text or "")
+    text = html.unescape(re.sub(r"<[^>]+>", " ", text))
+    text = re.sub(r"<[^>]+>", " ", text)
     return re.sub(r"\s+", " ", text).strip()
 
 
