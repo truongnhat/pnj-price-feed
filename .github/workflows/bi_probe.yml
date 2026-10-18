@@ -1,0 +1,20 @@
+name: BI job source probe (temporary, C31)
+on:
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe Vietnam job sources
+        run: |
+          UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+          probe() { echo "=== $1"; curl -sS -m 25 -A "$UA" -o /tmp/out -w "HTTP %{http_code} size %{size_download}\n" "${@:2}"; head -c 1500 /tmp/out | tr '\n' ' '; echo; }
+          probe VNW_API -X POST -H "Content-Type: application/json" -H "Accept: application/json" \
+            --data '{"userId":0,"query":"power bi","filter":[],"ranges":[],"order":[{"field":"approvedOn","value":"desc"}],"hitsPerPage":5,"page":0,"retrieveFields":["jobTitle","companyName","approvedOn","jobUrl","skills","workingLocations","jobDescription","prettySalary"]}' \
+            https://ms.vietnamworks.com/job-search/v1.0/search
+          probe VNW_HTML "https://www.vietnamworks.com/viec-lam?q=power-bi"
+          probe TOPCV "https://www.topcv.vn/tim-viec-lam-power-bi"
+          probe LINKEDIN "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=power%20bi&location=Vietnam&f_TPR=r604800&start=0"
+          probe CAREERVIET "https://careerviet.vn/viec-lam/power-bi-k-vi.html"
+          probe ITVIEC_UA "https://itviec.com/it-jobs/power-bi"
