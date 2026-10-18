@@ -361,6 +361,59 @@ class TestBiFeed(unittest.TestCase):
             fb.fetch_one(Sess(), "ITviec jobs", "https://itviec.com/it-jobs/{query}", "T3", "job",
                          "itviec", "2026-10-18T12:00:00+07:00")
 
+    # ---- C31: Vietnam job sources
+    def test_parse_vnw(self):
+        payload = {"data": [
+            {"jobId": 123, "alias": "bi-lead", "jobUrl": "", "jobTitle": "BI Lead",
+             "companyName": "ACME", "approvedOn": "2026-10-16T17:11:17+07:00",
+             "jobDescription": "<p>Semantic model, DAX</p>", "jobRequirement": "",
+             "skills": [{"skillName": "Power Bi"}, {"skillName": "Sql"}],
+             "workingLocations": [{"cityNameVI": "Hồ Chí Minh"}], "prettySalary": "Thương lượng"},
+            {"jobId": 0, "alias": "", "jobUrl": "", "jobTitle": "No link", "approvedOn": "2026-10-16"}]}
+        rows = fb.parse_vnw(payload, "VietnamWorks jobs", "T3", "job")
+        self.assertEqual(len(rows), 1)
+        r = rows[0]
+        self.assertEqual(r["url"], "https://www.vietnamworks.com/bi-lead-123-jv")
+        self.assertEqual(r["title"], "BI Lead — ACME · Hồ Chí Minh, Vietnam · Thương lượng")
+        self.assertTrue(r["summary"].startswith("skills: dax, semantic model, power bi, sql |"))
+        self.assertEqual(fb.job_region(r["title"]), "VN")
+
+    def test_parse_linkedin(self):
+        html = """<!DOCTYPE html><li><div class="base-card job-search-card">
+<a class="base-card__full-link absolute" href="https://vn.linkedin.com/jobs/view/bi-architect-x-4480321530?position=1">
+<span class="sr-only">BI Architect</span></a>
+<h3 class="base-search-card__title"> Data Architect (Microsoft Fabric) </h3>
+<h4 class="base-search-card__subtitle"><a class="hidden-nested-link" href="x"> Masan </a></h4>
+<span class="job-search-card__location"> Ho Chi Minh City, Vietnam </span>
+<time class="job-search-card__listdate" datetime="2026-10-15"> 3 days ago </time></div></li>
+<li><div>broken card</div></li>"""
+        rows = fb.parse_linkedin(html, "LinkedIn jobs (VN)", "T3", "job")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["url"], "https://vn.linkedin.com/jobs/view/bi-architect-x-4480321530")
+        self.assertEqual(rows[0]["title"],
+                         "Data Architect (Microsoft Fabric) — Masan · Ho Chi Minh City, Vietnam · salary n/a")
+        self.assertTrue(rows[0]["pub_date"].startswith("2026-10-15"))
+        self.assertTrue(rows[0]["summary"].startswith("skills: fabric |"))
+
+    def test_vn_sources_survive_one_failing_query(self):
+        class Resp:
+            def __init__(self, data): self.data = data
+            def raise_for_status(self): pass
+            def json(self): return self.data
+
+        calls = []
+
+        class Sess:
+            def post(self, url, json=None, **kw):
+                calls.append(json["query"])
+                if json["query"] == "power bi":
+                    raise RuntimeError("429")
+                return Resp({"data": [{"jobUrl": f"https://vnw/{json['query']}", "jobTitle": json["query"],
+                                       "companyName": "C", "approvedOn": "2026-10-17"}]})
+
+        rows = fb.fetch_one(Sess(), "VietnamWorks jobs", "u", "T3", "job", "vnw", "2026-10-18T12:00:00+07:00")
+        self.assertEqual(len(rows), len(fb.VN_JOB_QUERIES) - 1)
+
     # ---- C18: T1 article text
     def test_build_articles(self):
         now = datetime.fromisoformat("2026-10-18T12:00:00+07:00")

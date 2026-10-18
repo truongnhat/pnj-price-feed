@@ -119,9 +119,14 @@ FEEDS: list[tuple[str, str, str, str, str]] = [
     ("Himalayas jobs",
      "https://himalayas.app/jobs/api/search?q={query}&limit=20",
      "T3", "job", "himalayas"),
-    # Vietnam board: list pages give job links, each job page carries a
-    # schema.org JobPosting (title, company, datePosted, description) (C18).
-    ("ITviec jobs", "https://itviec.com/it-jobs/{query}", "T3", "job", "itviec"),
+    # Vietnam jobs (C31). ITviec and TopCV block GitHub Actions (Cloudflare
+    # 403, probe 18/10); VietnamWorks' search API and LinkedIn's public guest
+    # job search answer.
+    ("VietnamWorks jobs", "https://ms.vietnamworks.com/job-search/v1.0/search", "T3", "job", "vnw"),
+    ("LinkedIn jobs (VN)",
+     "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
+     "?keywords={query}&location=Vietnam&f_TPR=r604800&start=0",
+     "T3", "job", "linkedin"),
 ]
 
 # Sources whose rows are re-checked on every run: a successful run replaces
@@ -140,6 +145,10 @@ SAMPLE_REPOS = {
 
 JOB_QUERIES = ["power bi", "microsoft fabric", "data architect", "analytics engineer", "semantic model"]
 
+VN_JOB_QUERIES = ["power bi", "microsoft fabric", "data architect", "data engineer", "head of data"]
+VNW_PER_QUERY = 20
+BROWSER_UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+              "Chrome/124.0 Safari/537.36")
 ITVIEC_QUERIES = ["power-bi", "data-architect", "data-engineer"]
 ITVIEC_PER_QUERY = 10
 ITVIEC_BASE = "https://itviec.com"
@@ -422,6 +431,69 @@ def parse_jobposting(markup: str, url: str, source: str, tier: str, category: st
     return None
 
 
+def _vn_where(places: list[str]) -> str:
+    where = " - ".join(p for p in places if p) or "Vietnam"
+    return where if "viet" in where.lower() else where + ", Vietnam"
+
+
+def _skill_summary(text: str, extra: list[str] | None = None, desc: str = "") -> str:
+    skills = [name for name, pat in SKILL_TAGS if re.search(pat, text, re.I)]
+    for e in extra or []:
+        if e and e.lower() not in skills:
+            skills.append(e.lower())
+    return f"skills: {', '.join(skills) or 'none'} | {desc}"
+
+
+def parse_vnw(payload: dict, source: str, tier: str, category: str) -> list[dict]:
+    """VietnamWorks search API: one row per job, dated by approvedOn."""
+    out = []
+    for j in (payload or {}).get("data") or []:
+        url = j.get("jobUrl") or ""
+        if not url and j.get("alias") and j.get("jobId"):
+            url = f"https://www.vietnamworks.com/{j['alias']}-{j['jobId']}-jv"
+        places = []
+        for loc in j.get("workingLocations") or []:
+            name = (loc or {}).get("cityNameVI") or (loc or {}).get("cityName") or ""
+            if name and name not in places:
+                places.append(name)
+        desc = clean(f"{j.get('jobDescription') or ''} {j.get('jobRequirement') or ''}")
+        skills = [s.get("skillName", "") for s in (j.get("skills") or []) if isinstance(s, dict)]
+        salary = j.get("prettySalary") or "salary n/a"
+        title = f"{j.get('jobTitle', '')} — {j.get('companyName', '')} · {_vn_where(places)} · {salary}"
+        row = item(source, tier, category, title, url, to_vn_iso(j.get("approvedOn") or ""),
+                   _skill_summary(f"{j.get('jobTitle', '')} {desc}", skills, desc))
+        if row:
+            out.append(row)
+    return out
+
+
+LI_CARD = re.compile(r'<li>(.*?)</li>', re.S)
+
+
+def _tag_text(markup: str, cls: str) -> str:
+    m = re.search(r'class="[^"]*\b' + re.escape(cls) + r'\b[^"]*"[^>]*>(.*?)</', markup, re.S)
+    return clean(m.group(1)) if m else ""
+
+
+def parse_linkedin(markup: str, source: str, tier: str, category: str) -> list[dict]:
+    """LinkedIn guest job search cards: title, company, location, date
+    (<time datetime>), link. No description, so skills come from the title."""
+    out = []
+    for card in LI_CARD.findall(markup or ""):
+        link = re.search(r'class="base-card__full-link[^"]*"[^>]*href="([^"?]+)', card)
+        date = re.search(r'<time[^>]+datetime="(\d{4}-\d{2}-\d{2})"', card)
+        title = _tag_text(card, "base-search-card__title")
+        if not (link and date and title):
+            continue
+        company = _tag_text(card, "hidden-nested-link") or _tag_text(card, "base-search-card__subtitle")
+        where = _tag_text(card, "job-search-card__location")
+        row = item(source, tier, category, f"{title} — {company} · {_vn_where([where])} · salary n/a",
+                   link.group(1), to_vn_iso(date.group(1)), _skill_summary(title))
+        if row:
+            out.append(row)
+    return out
+
+
 def page_text(markup: str) -> str:
     """Main text of a community.fabric.microsoft.com post (Khoros); falls back
     to the whole page body when the post container is not found."""
@@ -597,6 +669,44 @@ def fetch_one(session: requests.Session, name, url, tier, category, kind, ts: st
                 if r["url"] not in seen:
                     seen.add(r["url"])
                     rows.append(r)
+        return rows
+    if kind == "vnw":
+        rows, seen, errors = [], set(), []
+        for q in VN_JOB_QUERIES:
+            body = {"userId": 0, "query": q, "filter": [], "ranges": [],
+                    "order": [{"field": "approvedOn", "value": "desc"}],
+                    "hitsPerPage": VNW_PER_QUERY, "page": 0}
+            try:
+                resp = session.post(url, json=body, timeout=TIMEOUT,
+                                    headers={"User-Agent": BROWSER_UA, "Accept": "application/json"})
+                resp.raise_for_status()
+            except Exception as exc:
+                errors.append(f"{q}: {exc}")
+                continue
+            for r in parse_vnw(resp.json(), name, tier, category):
+                if r["url"] not in seen:
+                    seen.add(r["url"])
+                    rows.append(r)
+        if errors and len(errors) == len(VN_JOB_QUERIES):
+            raise RuntimeError("; ".join(errors)[:180])
+        return rows
+    if kind == "linkedin":
+        rows, seen, errors = [], set(), []
+        for q in VN_JOB_QUERIES:
+            try:
+                resp = session.get(url.format(query=requests.utils.quote(q)), timeout=TIMEOUT,
+                                   headers={"User-Agent": BROWSER_UA, "Accept": "text/html"})
+                resp.raise_for_status()
+            except Exception as exc:  # LinkedIn may rate-limit one query
+                errors.append(f"{q}: {exc}")
+                continue
+            for r in parse_linkedin(resp.text, name, tier, category):
+                if r["url"] not in seen:
+                    seen.add(r["url"])
+                    rows.append(r)
+            time.sleep(1.0)
+        if errors and len(errors) == len(VN_JOB_QUERIES):
+            raise RuntimeError("; ".join(errors)[:180])
         return rows
     if kind == "itviec":
         page_headers = dict(HEADERS, Accept="text/html,application/xhtml+xml")
