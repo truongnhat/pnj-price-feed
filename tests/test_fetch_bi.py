@@ -260,17 +260,149 @@ class TestBiFeed(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as d:
             fb.LATEST, fb.HEALTH = Path(d) / "l.csv", Path(d) / "h.csv"
-            orig_kt = (fb.KEYWORDS, fb.TRENDS)
-            fb.KEYWORDS, fb.TRENDS = Path(d) / "k.csv", Path(d) / "t.csv"
+            orig_kt = (fb.KEYWORDS, fb.TRENDS, fb.ARTICLES)
+            fb.KEYWORDS, fb.TRENDS, fb.ARTICLES = Path(d) / "k.csv", Path(d) / "t.csv", Path(d) / "a.csv"
             try:
                 code = fb.main(feeds=[("bad", "u", "T1", "new", "rss"), ("good", "u", "T1", "new", "rss")],
                                fetcher=fake)
                 health = fb.read_csv(fb.HEALTH)
             finally:
                 fb.LATEST, fb.HEALTH = orig
-                fb.KEYWORDS, fb.TRENDS = orig_kt
+                fb.KEYWORDS, fb.TRENDS, fb.ARTICLES = orig_kt
         self.assertEqual(code, 0)
         self.assertEqual([h["status"] for h in health], ["error", "ok"])
+
+
+    # ---- C28 / C29: trend counting
+    def test_trends_skip_stale_and_dedupe_reposts(self):
+        now = datetime.fromisoformat("2026-10-18T12:00:00+07:00")
+        rows = [
+            {"title": "What are Claude Dashboards?", "pub_date": "2026-10-12T10:00:00+07:00",
+             "category": "craft", "source": "Tabular Editor blog", "url": "a"},
+            {"title": "What are Claude dashboards", "pub_date": "2026-10-12T11:00:00+07:00",
+             "category": "craft", "source": "r/PowerBI top day", "url": "b"},
+            {"title": "Fabric September 2026 Feature Summary", "pub_date": "2026-10-13T00:00:00+07:00",
+             "category": "new", "flags": "stale_title", "url": "c"},
+            {"title": "Fabric Policies (Preview)", "pub_date": "2026-10-16T00:00:00+07:00",
+             "category": "new", "url": "d"}]
+        kws = [{"group": "A", "keyword": "Claude", "pattern": "claude"},
+               {"group": "C", "keyword": "Fabric", "pattern": r"\bfabric\b"}]
+        by = {r["keyword"]: r for r in fb.compute_trends(rows, kws, now, "ts")}
+        self.assertEqual(by["Claude"]["news_7d"], 1)
+        self.assertEqual(by["Fabric"]["news_7d"], 1)
+
+    def test_trends_match_article_body(self):
+        now = datetime.fromisoformat("2026-10-18T12:00:00+07:00")
+        rows = [{"title": "Power BI October 2026 Feature Summary", "pub_date": "2026-10-16T04:25:00+07:00",
+                 "category": "new", "url": "u"}]
+        kws = [{"group": "P", "keyword": "Throttling", "pattern": r"throttl\w*|surge protection"}]
+        self.assertEqual(fb.compute_trends(rows, kws, now, "ts")[0]["news_7d"], 0)
+        self.assertEqual(fb.compute_trends(rows, kws, now, "ts",
+                                           {"u": "More accurate surge protection"})[0]["news_7d"], 1)
+
+    # ---- C18: ITviec
+    def test_itviec_links(self):
+        html = ('<a href="/it-jobs/senior-bi-developer-power-bi-pnj-1234?lab=x">a</a>'
+                '<a href="/it-jobs/senior-bi-developer-power-bi-pnj-1234?lab=y">dup</a>'
+                '<a href="https://itviec.com/it-jobs/data-architect-abc-56789">b</a>'
+                '<a href="/it-jobs/power-bi">category page</a>')
+        self.assertEqual(fb.itviec_job_links(html),
+                         ["https://itviec.com/it-jobs/senior-bi-developer-power-bi-pnj-1234",
+                          "https://itviec.com/it-jobs/data-architect-abc-56789"])
+
+    def test_parse_jobposting(self):
+        page = """<html><script type="application/ld+json">{"@context":"https://schema.org",
+        "@type":"JobPosting","title":"Senior BI Engineer","datePosted":"2026-10-17T09:00:00+07:00",
+        "hiringOrganization":{"@type":"Organization","name":"ACME"},
+        "jobLocation":[{"@type":"Place","address":{"addressLocality":"Ho Chi Minh"}}],
+        "description":"&lt;p&gt;Power BI, DAX, Microsoft Fabric and AI agents&lt;/p&gt;"}</script></html>"""
+        row = fb.parse_jobposting(page, "https://itviec.com/it-jobs/x-1234", "ITviec jobs", "T3", "job")
+        self.assertEqual(row["title"], "Senior BI Engineer — ACME · Ho Chi Minh, Vietnam · salary n/a")
+        self.assertEqual(row["pub_date"], "2026-10-17T09:00:00+07:00")
+        self.assertTrue(row["summary"].startswith("skills: fabric, dax, ai agent |"))
+        self.assertEqual(fb.job_region(row["title"]), "VN")
+        self.assertIsNone(fb.parse_jobposting("<html>no json</html>", "u", "s", "T3", "job"))
+
+    def test_itviec_fetch_flow(self):
+        class Resp:
+            def __init__(self, text): self.text = text
+            def raise_for_status(self): pass
+
+        job = ('<script type="application/ld+json">{"@type":"JobPosting","title":"BI Dev",'
+               '"datePosted":"2026-10-17","hiringOrganization":{"name":"X"},"description":"DAX"}</script>')
+
+        class Sess:
+            def get(self, url, **kw):
+                if url.endswith("power-bi"):
+                    return Resp('<a href="/it-jobs/bi-dev-x-1111">j</a>')
+                if "/it-jobs/bi-dev-x-1111" in url:
+                    return Resp(job)
+                return Resp("")
+
+        orig = fb.time.sleep
+        fb.time.sleep = lambda s: None
+        try:
+            rows = fb.fetch_one(Sess(), "ITviec jobs", "https://itviec.com/it-jobs/{query}", "T3", "job",
+                                "itviec", "2026-10-18T12:00:00+07:00")
+        finally:
+            fb.time.sleep = orig
+        self.assertEqual(len(rows), 1)
+        self.assertIn("BI Dev — X", rows[0]["title"])
+
+    def test_itviec_no_links_is_error(self):
+        class Resp:
+            text = "<html>captcha</html>"
+            def raise_for_status(self): pass
+
+        class Sess:
+            def get(self, url, **kw): return Resp()
+
+        with self.assertRaises(RuntimeError):
+            fb.fetch_one(Sess(), "ITviec jobs", "https://itviec.com/it-jobs/{query}", "T3", "job",
+                         "itviec", "2026-10-18T12:00:00+07:00")
+
+    # ---- C18: T1 article text
+    def test_build_articles(self):
+        now = datetime.fromisoformat("2026-10-18T12:00:00+07:00")
+        long_body = "x " * 400
+        new = [
+            {"source": "Fabric Blog", "tier": "T1", "title": "Long", "url": "l",
+             "pub_date": "2026-10-16T00:00:00+07:00", "body": long_body},
+            {"source": "Power BI Blog", "tier": "T1", "title": "Teaser", "url": "t",
+             "pub_date": "2026-10-16T00:00:00+07:00", "body": "short"},
+            {"source": "Power BI Blog", "tier": "T1", "title": "Old", "url": "o",
+             "pub_date": "2026-10-01T00:00:00+07:00", "body": long_body},
+            {"source": "SQLBI", "tier": "T2", "title": "Not T1 blog", "url": "s",
+             "pub_date": "2026-10-16T00:00:00+07:00", "body": long_body},
+            {"source": "Fabric Blog", "tier": "T1", "title": "Fabric September 2026 Feature Summary",
+             "url": "st", "pub_date": "2026-10-16T00:00:00+07:00", "body": long_body, "flags": "stale_title"}]
+        pages = []
+
+        def get_page(u):
+            pages.append(u)
+            return '<div class="lia-message-body-content"><p>Full post text about surge protection</p></div>'
+
+        out = {a["url"]: a for a in fb.build_articles([], new, now, "ts", get_page)}
+        self.assertEqual(set(out), {"l", "t"})
+        self.assertEqual(out["l"]["text_source"], "rss")
+        self.assertEqual(out["t"]["text_source"], "page")
+        self.assertIn("surge protection", out["t"]["text"])
+        self.assertEqual(pages, ["t"])
+        # stored article is not fetched again
+        again = fb.build_articles(list(out.values()), new, now, "ts2", get_page)
+        self.assertEqual(pages, ["t"])
+        self.assertEqual({a["fetched_at"] for a in again}, {"ts"})
+
+    def test_page_fetch_failure_keeps_rss_text(self):
+        now = datetime.fromisoformat("2026-10-18T12:00:00+07:00")
+        new = [{"source": "Power BI Blog", "tier": "T1", "title": "T", "url": "t",
+                "pub_date": "2026-10-16T00:00:00+07:00", "body": "short teaser"}]
+
+        def boom(u):
+            raise RuntimeError("blocked")
+
+        out = fb.build_articles([], new, now, "ts", boom)
+        self.assertEqual(out[0]["text"], "short teaser")
 
 
 if __name__ == "__main__":

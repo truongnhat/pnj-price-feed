@@ -26,6 +26,10 @@ Output files (UTF-8, no BOM, "\n" line endings):
                                        Other (from locations + JD text)
   - data/bi_trends.csv : keyword counts from data/bi_keywords.csv (news 7d vs
                          previous 7d, jobs 14d), for the agent's Trend Radar.
+  - data/bi_articles.csv : full text of T1 blog posts (Power BI / Fabric Blog)
+                         from the last 7 days: url, source, tier, title,
+                         pub_date, fetched_at, text_source (rss|page), text.
+                         Lets the agent read T1 posts without WebFetch (C18).
   - data/bi_health.csv : one row per source: source, url, status, items,
                          newest_pub_date, error_msg, last_checked.
 
@@ -35,6 +39,8 @@ Exit code: 0 if at least one source worked, 1 if all failed.
 from __future__ import annotations
 
 import csv
+import json
+import time
 import logging
 import os
 import re
@@ -109,11 +115,13 @@ FEEDS: list[tuple[str, str, str, str, str]] = [
      "T1", "sample", "gh_repo_commits"),
     ("SQLBI samples", "https://api.github.com/repos/{repo}/commits?per_page=5",
      "T2", "sample", "gh_repo_commits"),
-    # Job Radar: remote/regional jobs (Himalayas public API, no key). Vietnam
-    # boards (ITviec, TopCV) are read by the agent at run time.
+    # Job Radar: remote/regional jobs (Himalayas public API, no key).
     ("Himalayas jobs",
      "https://himalayas.app/jobs/api/search?q={query}&limit=20",
      "T3", "job", "himalayas"),
+    # Vietnam board: list pages give job links, each job page carries a
+    # schema.org JobPosting (title, company, datePosted, description) (C18).
+    ("ITviec jobs", "https://itviec.com/it-jobs/{query}", "T3", "job", "itviec"),
 ]
 
 # Sources whose rows are re-checked on every run: a successful run replaces
@@ -131,6 +139,17 @@ SAMPLE_REPOS = {
 }
 
 JOB_QUERIES = ["power bi", "microsoft fabric", "data architect", "analytics engineer", "semantic model"]
+
+ITVIEC_QUERIES = ["power-bi", "data-architect", "data-engineer"]
+ITVIEC_PER_QUERY = 10
+ITVIEC_BASE = "https://itviec.com"
+
+ARTICLES = DATA / "bi_articles.csv"
+ARTICLE_COLS = ["url", "source", "tier", "title", "pub_date", "fetched_at", "text_source", "text"]
+ARTICLE_SOURCES = {"Power BI Blog", "Fabric Blog"}
+ARTICLE_DAYS = 7
+BODY_LEN = 8000
+MIN_RSS_BODY = 600  # shorter RSS text = a teaser, so read the page instead
 
 KEYWORDS = DATA / "bi_keywords.csv"
 TRENDS = DATA / "bi_trends.csv"
@@ -237,7 +256,8 @@ def item(source, tier, category, title, url, pub_date, summary: str = "") -> dic
         return None  # never keep an undated item: the agent gates on pub_date
     return {"source": source, "tier": tier, "title": title, "url": url.strip(),
             "pub_date": pub_date, "category": category, "status": guess_status(title),
-            "summary": clean(summary)[:SUMMARY_LEN]}
+            "summary": clean(summary)[:SUMMARY_LEN],
+            "body": clean(summary)[:BODY_LEN]}  # not written to bi_latest; feeds bi_articles
 
 
 # ---------------------------------------------------------------- parsers
@@ -339,6 +359,114 @@ def parse_himalayas(payload: dict, source: str, tier: str, category: str) -> lis
     return out
 
 
+ITVIEC_JOB_LINK = re.compile(r'href="((?:https://itviec\.com)?/it-jobs/[a-z0-9-]+-\d{3,7})(?=[?"#])', re.I)
+SKILL_TAGS = [("fabric", r"\bfabric\b"), ("direct lake", r"direct\s?lake"), ("dax", r"\bdax\b"),
+              ("ssas", r"\bssas\b|analysis services"), ("semantic model", r"semantic model"),
+              ("ai agent", r"ai agents?|\bagentic\b"), ("llm", r"\bllm|genai|generative ai")]
+
+
+def itviec_job_links(markup: str, limit: int = ITVIEC_PER_QUERY) -> list[str]:
+    out = []
+    for href in ITVIEC_JOB_LINK.findall(markup or ""):
+        url = href if href.startswith("http") else ITVIEC_BASE + href
+        if url not in out:
+            out.append(url)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _jsonld_objects(markup: str):
+    for block in re.findall(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>', markup or "", re.S | re.I):
+        try:
+            data = json.loads(block.strip())
+        except ValueError:
+            continue
+        stack = data if isinstance(data, list) else [data]
+        while stack:
+            obj = stack.pop()
+            if isinstance(obj, dict):
+                yield obj
+                stack.extend(obj.get("@graph", []) if isinstance(obj.get("@graph"), list) else [])
+            elif isinstance(obj, list):
+                stack.extend(obj)
+
+
+def parse_jobposting(markup: str, url: str, source: str, tier: str, category: str) -> dict | None:
+    """One job page -> one row, from its schema.org JobPosting. No JobPosting or
+    no datePosted -> None (never an undated job)."""
+    for obj in _jsonld_objects(markup):
+        kind = obj.get("@type")
+        if kind != "JobPosting" and not (isinstance(kind, list) and "JobPosting" in kind):
+            continue
+        org = obj.get("hiringOrganization") or {}
+        org = org.get("name", "") if isinstance(org, dict) else str(org)
+        locs = obj.get("jobLocation") or []
+        locs = locs if isinstance(locs, list) else [locs]
+        places = []
+        for loc in locs:
+            addr = (loc or {}).get("address") or {} if isinstance(loc, dict) else {}
+            if isinstance(addr, dict):
+                place = addr.get("addressLocality") or addr.get("addressRegion") or ""
+                if place and place not in places:
+                    places.append(place)
+        where = " - ".join(places) or "Vietnam"
+        if "viet" not in where.lower():
+            where += ", Vietnam"
+        desc = clean(obj.get("description", ""))
+        text = f"{obj.get('title', '')} {desc}"
+        skills = [name for name, pat in SKILL_TAGS if re.search(pat, text, re.I)]
+        summary = f"skills: {', '.join(skills) or 'none'} | {desc}"
+        title = f"{obj.get('title', '')} — {org} · {where} · salary n/a"
+        return item(source, tier, category, title, url, to_vn_iso(obj.get("datePosted", "")), summary)
+    return None
+
+
+def page_text(markup: str) -> str:
+    """Main text of a community.fabric.microsoft.com post (Khoros); falls back
+    to the whole page body when the post container is not found."""
+    markup = re.sub(r"(?is)<(script|style|noscript)[^>]*>.*?</\1>", " ", markup or "")
+    i = markup.find("lia-message-body-content")
+    if i >= 0:
+        markup = markup[i:]
+        markup = markup[markup.find(">") + 1:]
+    return clean(markup)[:BODY_LEN]
+
+
+def build_articles(old: list[dict], new: list[dict], now: datetime, ts: str,
+                   get_page: Callable[[str], str] | None = None) -> list[dict]:
+    """Keep the full text of T1 blog posts from the last ARTICLE_DAYS days. A
+    post already stored is not fetched again. RSS text is used when it is long
+    enough; otherwise the page is read once (a failed read keeps the RSS text)."""
+    cutoff = now - timedelta(days=ARTICLE_DAYS)
+
+    def recent(r):
+        try:
+            return datetime.fromisoformat(r["pub_date"]) >= cutoff
+        except (ValueError, KeyError):
+            return False
+
+    by_url = {a["url"]: a for a in old if recent(a)}
+    for r in new:
+        if r.get("source") not in ARTICLE_SOURCES or r["url"] in by_url or not recent(r):
+            continue
+        if "stale_title" in (r.get("flags") or ""):
+            continue
+        text, origin = r.get("body", ""), "rss"
+        if len(text) < MIN_RSS_BODY and get_page:
+            try:
+                fetched = page_text(get_page(r["url"]))
+                if len(fetched) > len(text):
+                    text, origin = fetched, "page"
+            except Exception as exc:  # keep the RSS text
+                logging.info("article page %s failed: %s", r["url"], exc)
+        if not text:
+            continue
+        by_url[r["url"]] = {"url": r["url"], "source": r["source"], "tier": r["tier"], "title": r["title"],
+                            "pub_date": r["pub_date"], "fetched_at": ts, "text_source": origin, "text": text}
+    return sorted(by_url.values(), key=lambda a: a["pub_date"], reverse=True)
+
+
 # ---------------------------------------------------------------- trends
 
 def load_keywords(path: Path = None) -> list[dict]:
@@ -356,9 +484,18 @@ def load_keywords(path: Path = None) -> list[dict]:
     return out
 
 
-def compute_trends(rows: list[dict], keywords: list[dict], now: datetime, ts: str) -> list[dict]:
-    """Per keyword: news titles in the last 7 days vs the 7 days before, and
-    job rows in the 14-day window. Sorted by delta, then volume."""
+def norm_title(title: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", (title or "").lower()).strip()
+
+
+def compute_trends(rows: list[dict], keywords: list[dict], now: datetime, ts: str,
+                   bodies: dict[str, str] | None = None) -> list[dict]:
+    """Per keyword: news items in the last 7 days vs the 7 days before, and
+    job rows in the 14-day window. Sorted by delta, then volume.
+    Matched on title + summary + stored article text (bi_articles).
+    Rows flagged stale_title are skipped (C29); a news title seen twice
+    (e.g. a blog post and its r/PowerBI repost) counts once (C28)."""
+    bodies = bodies or {}
     out = []
     for k in keywords:
         try:
@@ -366,9 +503,18 @@ def compute_trends(rows: list[dict], keywords: list[dict], now: datetime, ts: st
         except re.error:
             continue
         n7 = p7 = jobs = 0
+        seen = set()
         for r in rows:
-            if not pat.search(f"{r.get('title', '')} {r.get('summary', '')}"):
+            if "stale_title" in (r.get("flags") or ""):
                 continue
+            text = f"{r.get('title', '')} {r.get('summary', '')} {bodies.get(r.get('url', ''), '')}"
+            if not pat.search(text):
+                continue
+            if r.get("category") not in ("job", "sample"):
+                key = norm_title(r.get("title", ""))
+                if key in seen:
+                    continue
+                seen.add(key)
             if r.get("category") == "job":
                 jobs += 1
                 continue
@@ -452,6 +598,29 @@ def fetch_one(session: requests.Session, name, url, tier, category, kind, ts: st
                     seen.add(r["url"])
                     rows.append(r)
         return rows
+    if kind == "itviec":
+        page_headers = dict(HEADERS, Accept="text/html,application/xhtml+xml")
+        rows, seen, listed = [], set(), 0
+        for q in ITVIEC_QUERIES:
+            resp = session.get(url.format(query=q), headers=page_headers, timeout=TIMEOUT)
+            resp.raise_for_status()
+            for job_url in itviec_job_links(resp.text):
+                listed += 1
+                if job_url in seen:
+                    continue
+                seen.add(job_url)
+                try:
+                    jr = session.get(job_url, headers=page_headers, timeout=TIMEOUT)
+                    jr.raise_for_status()
+                    row = parse_jobposting(jr.text, job_url, name, tier, category)
+                    if row:
+                        rows.append(row)
+                except Exception as exc:  # one bad job page never hides the rest
+                    logging.info("itviec job %s failed: %s", job_url, exc)
+                time.sleep(0.5)
+        if listed == 0:
+            raise RuntimeError("ITviec: no job links found (layout changed or blocked)")
+        return rows
     headers = dict(HEADERS)
     if kind.startswith("gh_") and os.environ.get("GITHUB_TOKEN"):
         headers["Authorization"] = f"Bearer {os.environ['GITHUB_TOKEN']}"
@@ -488,6 +657,12 @@ def repo_has_model(session: requests.Session, html_url: str) -> bool:
     except Exception as exc:
         logging.info("tree check skipped %s: %s", full, exc)
         return False
+
+
+def _get_page(session: requests.Session, url: str) -> str:
+    resp = session.get(url, headers=dict(HEADERS, Accept="text/html"), timeout=TIMEOUT)
+    resp.raise_for_status()
+    return resp.text
 
 
 def read_csv(path: Path) -> list[dict]:
@@ -557,9 +732,16 @@ def main(feeds=FEEDS, fetcher: Callable = fetch) -> int:
     latest = merge(read_csv(LATEST), new_rows, ts, now, replace)
     write_csv(LATEST, LATEST_COLS, latest)
     write_csv(HEALTH, HEALTH_COLS, health)
+    by_url = {r["url"]: r for r in latest}
+    for r in new_rows:  # carry flags from the merged rows onto this run's rows
+        if r["url"] in by_url:
+            r["flags"] = by_url[r["url"]].get("flags", "")
+    articles = build_articles(read_csv(ARTICLES), new_rows, now, ts, lambda u: _get_page(session, u))
+    write_csv(ARTICLES, ARTICLE_COLS, articles)
     keywords = load_keywords()
     if keywords:
-        write_csv(TRENDS, TREND_COLS, compute_trends(latest, keywords, now, ts))
+        bodies = {a["url"]: a["text"] for a in articles}
+        write_csv(TRENDS, TREND_COLS, compute_trends(latest, keywords, now, ts, bodies))
     logging.info("%d/%d sources ok", ok, len(feeds))
     return 0 if ok else 1
 
