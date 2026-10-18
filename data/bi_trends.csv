@@ -1,38 +1,38 @@
 group,keyword,news_7d,news_prev_7d,delta,jobs_14d,last_checked
-Career,Microsoft Fabric skill,18,3,15,11,2026-10-18T22:59:40+07:00
-AI on model,Claude / LLM,7,0,7,3,2026-10-18T22:59:40+07:00
-Performance,Refresh,7,0,7,0,2026-10-18T22:59:40+07:00
-Platform,Semantic model,7,1,6,1,2026-10-18T22:59:40+07:00
-AI on model,AI agent,6,1,5,2,2026-10-18T22:59:40+07:00
-Performance,Capacity / CU,5,0,5,0,2026-10-18T22:59:40+07:00
-Governance,CI/CD & Git,3,0,3,2,2026-10-18T22:59:40+07:00
-AI on model,Copilot,4,1,3,0,2026-10-18T22:59:40+07:00
-Performance,Throttling,3,0,3,0,2026-10-18T22:59:40+07:00
-Platform,Fabric Apps,4,2,2,0,2026-10-18T22:59:40+07:00
-Modelling,TMDL / PBIP,2,0,2,0,2026-10-18T22:59:40+07:00
-Governance,Purview / catalog,2,0,2,0,2026-10-18T22:59:40+07:00
-Governance,RLS / OLS,2,0,2,0,2026-10-18T22:59:40+07:00
-Career,Power BI Developer,1,0,1,7,2026-10-18T22:59:40+07:00
-Retail domain,Inventory / forecasting,1,0,1,4,2026-10-18T22:59:40+07:00
-Modelling,DAX,3,2,1,1,2026-10-18T22:59:40+07:00
-Retail domain,Customer 360 / loyalty,1,0,1,2,2026-10-18T22:59:40+07:00
-Performance,Custom SQL Pools,1,0,1,0,2026-10-18T22:59:40+07:00
-AI on model,MCP,1,0,1,0,2026-10-18T22:59:40+07:00
-Platform,SSAS / Analysis Services,1,0,1,0,2026-10-18T22:59:40+07:00
-Career,Analytics Engineer,0,0,0,10,2026-10-18T22:59:40+07:00
-Platform,Writeback / Planning,2,2,0,5,2026-10-18T22:59:40+07:00
-Career,Data Architect,0,0,0,4,2026-10-18T22:59:40+07:00
-Career,Head of Data / CDO,0,0,0,3,2026-10-18T22:59:40+07:00
-AI on model,Fabric IQ / data agent,1,1,0,0,2026-10-18T22:59:40+07:00
-Modelling,Direct Lake,0,0,0,0,2026-10-18T22:59:40+07:00
-Modelling,DAX UDF,0,0,0,0,2026-10-18T22:59:40+07:00
-Modelling,Calculation groups,0,0,0,0,2026-10-18T22:59:40+07:00
-Modelling,Composite model,0,0,0,0,2026-10-18T22:59:40+07:00
-Performance,Fallback DirectQuery,0,0,0,0,2026-10-18T22:59:40+07:00
-Performance,VertiPaq,0,0,0,0,2026-10-18T22:59:40+07:00
-Governance,OneLake security,0,0,0,0,2026-10-18T22:59:40+07:00
-AI on model,Semantic link,0,0,0,0,2026-10-18T22:59:40+07:00
-Retail domain,Pricing,0,0,0,0,2026-10-18T22:59:40+07:00
-Retail domain,Retail,0,0,0,0,2026-10-18T22:59:40+07:00
-Performance,Approximate distinct count,0,1,-1,0,2026-10-18T22:59:40+07:00
-AI on model,DAX contract,0,1,-1,0,2026-10-18T22:59:40+07:00
+Career,Microsoft Fabric skill,17,4,13,11,2026-10-19T03:54:30+07:00
+AI on model,Claude / LLM,7,0,7,3,2026-10-19T03:54:30+07:00
+Performance,Refresh,7,0,7,0,2026-10-19T03:54:30+07:00
+AI on model,AI agent,6,1,5,2,2026-10-19T03:54:30+07:00
+Performance,Capacity / CU,5,0,5,0,2026-10-19T03:54:30+07:00
+Platform,Semantic model,6,2,4,1,2026-10-19T03:54:30+07:00
+Governance,CI/CD & Git,3,0,3,2,2026-10-19T03:54:30+07:00
+AI on model,Copilot,4,1,3,0,2026-10-19T03:54:30+07:00
+Performance,Throttling,3,0,3,0,2026-10-19T03:54:30+07:00
+Platform,Fabric Apps,4,2,2,0,2026-10-19T03:54:30+07:00
+Modelling,TMDL / PBIP,2,0,2,0,2026-10-19T03:54:30+07:00
+Governance,Purview / catalog,2,0,2,0,2026-10-19T03:54:30+07:00
+Career,Power BI Developer,1,0,1,7,2026-10-19T03:54:30+07:00
+Retail domain,Inventory / forecasting,1,0,1,4,2026-10-19T03:54:30+07:00
+Modelling,DAX,3,2,1,1,2026-10-19T03:54:30+07:00
+Retail domain,Customer 360 / loyalty,1,0,1,2,2026-10-19T03:54:30+07:00
+Performance,Custom SQL Pools,1,0,1,0,2026-10-19T03:54:30+07:00
+AI on model,MCP,1,0,1,0,2026-10-19T03:54:30+07:00
+Platform,SSAS / Analysis Services,1,0,1,0,2026-10-19T03:54:30+07:00
+Career,Analytics Engineer,0,0,0,10,2026-10-19T03:54:30+07:00
+Platform,Writeback / Planning,2,2,0,5,2026-10-19T03:54:30+07:00
+Career,Data Architect,0,0,0,4,2026-10-19T03:54:30+07:00
+Career,Head of Data / CDO,0,0,0,3,2026-10-19T03:54:30+07:00
+Governance,RLS / OLS,1,1,0,0,2026-10-19T03:54:30+07:00
+AI on model,Fabric IQ / data agent,1,1,0,0,2026-10-19T03:54:30+07:00
+Modelling,Direct Lake,0,0,0,0,2026-10-19T03:54:30+07:00
+Modelling,DAX UDF,0,0,0,0,2026-10-19T03:54:30+07:00
+Modelling,Calculation groups,0,0,0,0,2026-10-19T03:54:30+07:00
+Modelling,Composite model,0,0,0,0,2026-10-19T03:54:30+07:00
+Performance,Fallback DirectQuery,0,0,0,0,2026-10-19T03:54:30+07:00
+Performance,VertiPaq,0,0,0,0,2026-10-19T03:54:30+07:00
+Governance,OneLake security,0,0,0,0,2026-10-19T03:54:30+07:00
+AI on model,Semantic link,0,0,0,0,2026-10-19T03:54:30+07:00
+Retail domain,Pricing,0,0,0,0,2026-10-19T03:54:30+07:00
+Retail domain,Retail,0,0,0,0,2026-10-19T03:54:30+07:00
+Performance,Approximate distinct count,0,1,-1,0,2026-10-19T03:54:30+07:00
+AI on model,DAX contract,0,1,-1,0,2026-10-19T03:54:30+07:00
