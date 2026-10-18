@@ -361,6 +361,10 @@ class TestBiFeed(unittest.TestCase):
             fb.fetch_one(Sess(), "ITviec jobs", "https://itviec.com/it-jobs/{query}", "T3", "job",
                          "itviec", "2026-10-18T12:00:00+07:00")
 
+    def test_clean_decodes_entities(self):
+        self.assertEqual(fb.clean("Tech Lead - AI/ML &amp; Data"), "Tech Lead - AI/ML & Data")
+        self.assertEqual(fb.clean("&lt;p&gt;Hi&lt;/p&gt;"), "Hi")
+
     # ---- C31: Vietnam job sources
     def test_parse_vnw(self):
         payload = {"data": [
