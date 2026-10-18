@@ -9,7 +9,7 @@ jobs:
       - name: Probe Vietnam job sources
         run: |
           UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-          probe() { echo "=== $1"; curl -sS -m 25 -A "$UA" -o /tmp/out -w "HTTP %{http_code} size %{size_download}\n" "${@:2}"; head -c 1500 /tmp/out | tr '\n' ' '; echo; }
+          probe() { code=$(curl -sS -m 25 -A "$UA" -o /tmp/out -w "%{http_code} size=%{size_download}" "${@:2}" 2>&1); snip=$(head -c 2500 /tmp/out 2>/dev/null | tr '\n\r:,' '    ' | tr -s ' '); echo "::notice title=$1::HTTP $code | $snip"; }
           probe VNW_API -X POST -H "Content-Type: application/json" -H "Accept: application/json" \
             --data '{"userId":0,"query":"power bi","filter":[],"ranges":[],"order":[{"field":"approvedOn","value":"desc"}],"hitsPerPage":5,"page":0,"retrieveFields":["jobTitle","companyName","approvedOn","jobUrl","skills","workingLocations","jobDescription","prettySalary"]}' \
             https://ms.vietnamworks.com/job-search/v1.0/search
