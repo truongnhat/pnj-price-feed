@@ -35,4 +35,5 @@ Career,Analytics Engineer,analytics engineer
 Career,Power BI Developer,power bi (developer|engineer|consultant)
 Career,Microsoft Fabric skill,microsoft fabric|\bfabric\b
 Performance,Throttling,throttl\w*|surge protection|smoothing
-Platform,SSAS / Analysis Services,analysis services|\bssas\b|on-prem|gateway
+Platform,SSAS / Analysis Services,analysis services|\bssas\b|on-prem(ises)? (data )?gateway|\bgateway\b|tabular model
+Governance,Fabric Policies,fabric polic\w*|granular governance|policy sets?

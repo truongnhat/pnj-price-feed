@@ -120,6 +120,13 @@ class TestBiFeed(unittest.TestCase):
         self.assertIn(r"\bf\d{1,3}\b capacity", by["Capacity / CU"]["pattern"])
         self.assertIn("SSAS / Analysis Services", by)
         self.assertIn("Throttling", by)
+        # C36: bare "on-prem" (e.g. Eventstreams on-premises sources) must not count as SSAS
+        ssas = by["SSAS / Analysis Services"]["pattern"]
+        self.assertIsNone(re.search(ssas, "support for private and on-premises sources", re.I))
+        self.assertTrue(re.search(ssas, "on-premises data gateway cluster", re.I))
+        self.assertTrue(re.search(ssas, "Upgrade SSAS 2019 to 2022", re.I))
+        self.assertTrue(re.search(by["Fabric Policies"]["pattern"],
+                                  "Fabric Policies: Granular governance at scale", re.I))
 
     def test_load_keywords_skips_unquoted_comma_rows(self):
         import tempfile, os
