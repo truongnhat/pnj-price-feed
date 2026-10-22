@@ -1,7 +1,7 @@
 group,keyword,pattern
 Modelling,Direct Lake,direct\s?lake
 Modelling,TMDL / PBIP,\btmdl\b|\bpbip\b
-Modelling,DAX UDF,dax (udf|user.defined function)|\budf\b
+Modelling,DAX UDF,dax (udfs?|user.defined functions?)|dax ?lib(rar(y|ies))?|daxlib
 Modelling,Calculation groups,calculation group
 Modelling,Composite model,composite model
 Modelling,DAX,\bdax\b

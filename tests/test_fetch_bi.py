@@ -1,3 +1,4 @@
+import re
 import sys
 import unittest
 from datetime import datetime
@@ -456,6 +457,24 @@ class TestBiFeed(unittest.TestCase):
         again = fb.build_articles(list(out.values()), new, now, "ts2", get_page)
         self.assertEqual(pages, ["t"])
         self.assertEqual({a["fetched_at"] for a in again}, {"ts"})
+
+    # ---- C33: article text kept for both trend windows
+    def test_article_window_covers_prev_7d(self):
+        self.assertGreaterEqual(fb.ARTICLE_DAYS, 14)
+        now = datetime.fromisoformat("2026-10-23T05:00:00+07:00")
+        new = [{"source": "Fabric Blog", "tier": "T1", "title": "Ten days old", "url": "d10",
+                "pub_date": "2026-10-13T00:00:00+07:00", "body": "y " * 400}]
+        out = fb.build_articles([], new, now, "ts")
+        self.assertEqual([a["url"] for a in out], ["d10"])
+
+    # ---- C39: DAX UDF must not match Fabric User Data Functions
+    def test_dax_udf_pattern(self):
+        kws = {k["keyword"]: k for k in fb.load_keywords()}
+        pat = re.compile(kws["DAX UDF"]["pattern"], re.I)
+        self.assertTrue(pat.search("Install DAX libraries into Power BI Desktop by asking your AI assistant"))
+        self.assertTrue(pat.search("Writing DAX user-defined functions"))
+        self.assertTrue(pat.search("New DAX UDFs in daxlib"))
+        self.assertFalse(pat.search("Fabric Data Warehouse integration with Fabric User Data Functions (UDF)"))
 
     def test_page_fetch_failure_keeps_rss_text(self):
         now = datetime.fromisoformat("2026-10-18T12:00:00+07:00")
