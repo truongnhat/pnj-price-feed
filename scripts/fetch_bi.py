@@ -157,7 +157,7 @@ ITVIEC_BASE = "https://itviec.com"
 ARTICLES = DATA / "bi_articles.csv"
 ARTICLE_COLS = ["url", "source", "tier", "title", "pub_date", "fetched_at", "text_source", "text"]
 ARTICLE_SOURCES = {"Power BI Blog", "Fabric Blog"}
-ARTICLE_DAYS = 7
+ARTICLE_DAYS = 14  # C33: same window as news_prev_7d, so body matches count on both sides
 BODY_LEN = 8000
 MIN_RSS_BODY = 600  # shorter RSS text = a teaser, so read the page instead
 
