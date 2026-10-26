@@ -476,6 +476,17 @@ class TestBiFeed(unittest.TestCase):
         self.assertTrue(pat.search("New DAX UDFs in daxlib"))
         self.assertFalse(pat.search("Fabric Data Warehouse integration with Fabric User Data Functions (UDF)"))
 
+    # ---- C45: CI/CD pattern must not match bare "deployment"
+    def test_cicd_pattern(self):
+        kws = {k["keyword"]: k for k in fb.load_keywords()}
+        pat = re.compile(kws["CI/CD & Git"]["pattern"], re.I)
+        self.assertTrue(pat.search("Fabric Deployment Plan - Ep.573"))
+        self.assertTrue(pat.search("Using deployment pipelines with Git integration"))
+        self.assertTrue(pat.search("fabric-cicd 0.3 released"))
+        self.assertTrue(pat.search("Asking the right Fabric CI/CD architecture questions"))
+        self.assertFalse(pat.search("Mike tried to say deployment savvy and invented Deplavity"))
+        self.assertFalse(pat.search("Deploy the migrated objects; deployment completes in minutes"))
+
     def test_page_fetch_failure_keeps_rss_text(self):
         now = datetime.fromisoformat("2026-10-18T12:00:00+07:00")
         new = [{"source": "Power BI Blog", "tier": "T1", "title": "T", "url": "t",

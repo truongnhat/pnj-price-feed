@@ -11,7 +11,7 @@ Performance,VertiPaq,vertipaq
 Performance,Refresh,\brefresh
 Performance,Custom SQL Pools,sql pools?\b|workload (isolation|management)
 Performance,Approximate distinct count,approximatedistinctcount|approx\w* distinct
-Governance,CI/CD & Git,ci/?cd|fabric-cicd|\bgit\b|deployment
+Governance,CI/CD & Git,ci/?cd|fabric-cicd|\bgit\b|git integration|deployment pipelines?|deployment plans?|deployment rules?
 Governance,OneLake security,onelake security
 Governance,Purview / catalog,purview|catalog
 Governance,RLS / OLS,\brls\b|\bols\b|row.level security
