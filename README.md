@@ -47,6 +47,7 @@ Where several providers are listed, they are tried in order and the **first one 
 | `Metals spot` | `gold`, `silver` / `spot` | `gold-api.com` → `goldprice.org` → `stooq.com` | XAU, XAG in USD per troy oz |
 | `PNJ stock` | `stock` / `session`, `session_date` | Vietcap → TCBS → VNDirect → CafeF | Latest HOSE session (see below). During trading hours the latest bar is the session in progress |
 | `PNJ foreign trading` | `stock` / `foreign`, `session_date` | Vietcap price board → VNDirect | Foreign investors' buy/sell (see below) |
+| `Peer stocks (Yahoo)` | `stock` / `peer_session`, `peer_session_date` | Yahoo Finance chart API (query1 → query2) | Jewellery peers: Chow Tai Fook 1929.HK, Luk Fook 0590.HK, Chow Sang Sang 0116.HK, Laopu Gold 6181.HK, Lao Feng Xiang 600612.SS, LVMH MC.PA, Richemont CFR.SW, Pandora PNDORA.CO, Titan TITAN.NS (see below) |
 
 ## Files
 
@@ -95,6 +96,7 @@ Notes:
   | `sbv.gov.vn` (and mirrors) | Date (and time, if shown) printed near the "Tỷ giá trung tâm" label |
   | `vietcap.com.vn` | Session rows: the latest bar's timestamp (the session date). Foreign rows: the board's newest time field (e.g. `receivedTime`), if present |
   | `gold-api.com` | `updatedAt` |
+  | `finance.yahoo.com` | `meta.regularMarketTime` (the exchange's last trade time) |
   | Other providers | Empty |
 
   Like `last_checked`, it moves forward on an unchanged price and is not part of the change check, so it never creates a new history row by itself.
@@ -117,6 +119,19 @@ The schema has no date column, so the session date is a row of its own.
 Prices quoted in thousand VND are converted to VND per share.
 
 **Foreign trading values are cross-checked.** Value ÷ volume is what foreign investors paid per share, so after converting the provider's unit (VND, thousand, million or billion VND) it must be within 20% of the same run's `PNJ đóng cửa`. If no close was fetched in the run, or no unit fits, the `PNJ NN GT mua/bán` row is left out and the run logs the raw values. The volume row is still written. `PNJ NN ngày phiên` is written only when the provider states the session date.
+
+### Peer stock rows (`source=finance.yahoo.com`)
+
+One set per peer; `<label>` is `<symbol> <name>`, e.g. `1929.HK Chow Tai Fook`.
+
+| item | price_type | buy = sell | currency | unit |
+|---|---|---|---|---|
+| `<label> đóng cửa` | `peer_session` | last daily close (session in progress during trading hours) | exchange currency (HKD, CNY, EUR, CHF, DKK, INR) | `1 cp` |
+| `<label> đóng cửa phiên trước` | `peer_session` | previous session's close (for % change) | same | `1 cp` |
+| `<label> khối lượng` | `peer_session` | session volume | empty | `cp` |
+| `<label> ngày phiên` | `peer_session_date` | session date `yyyymmdd`, in the exchange's time zone | empty | `yyyymmdd` |
+
+A peer that fails is skipped and logged; the source fails in health.csv only when every peer fails. Prices stay in the exchange currency: convert with the Vietcombank rows.
 
 ### health.csv
 

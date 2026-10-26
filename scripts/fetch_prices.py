@@ -11,6 +11,10 @@ are tried in order and the first one that works is used; `source` names it.
   - Metals spot       : XAU/XAG via gold-api.com -> goldprice.org -> stooq.com
   - PNJ stock (HOSE)  : session OHLC + volume via TCBS -> VNDirect -> CafeF;
                         foreign buy/sell via VNDirect -> CafeF
+  - Peer stocks       : Chow Tai Fook, Luk Fook, Chow Sang Sang, Laopu Gold (HKEX),
+                        Lao Feng Xiang (Shanghai), LVMH, Richemont, Pandora, Titan:
+                        last close, previous close, volume via Yahoo Finance
+                        (query1 -> query2 host)
 
 Output files (UTF-8, no BOM, comma-separated, "\n" line endings):
   - data/prices.csv : price history. A row is appended only when a price
@@ -135,6 +139,22 @@ VND_FOREIGN_URL = "https://finfo-api.vndirect.com.vn/v4/foreigns"
 CAFEF_PRICE_URL = "https://s.cafef.vn/Ajax/PageNew/DataHistory/PriceHistory.ashx"
 CAFEF_FOREIGN_URL = "https://s.cafef.vn/Ajax/PageNew/DataHistory/GDKhoiNgoai.ashx"
 STOCK_PRICE_MIN, STOCK_PRICE_MAX = 1_000, 10_000_000  # VND per share
+
+# Jewellery peers for the brief's comparison table (Yahoo Finance symbols).
+# The HKEX + Shanghai five come first: no other free source gave them a dated quote.
+PEER_STOCKS = (
+    ("1929.HK", "Chow Tai Fook"),
+    ("0590.HK", "Luk Fook"),
+    ("0116.HK", "Chow Sang Sang"),
+    ("6181.HK", "Laopu Gold"),
+    ("600612.SS", "Lao Feng Xiang"),
+    ("MC.PA", "LVMH"),
+    ("CFR.SW", "Richemont"),
+    ("PNDORA.CO", "Pandora"),
+    ("TITAN.NS", "Titan"),
+)
+YAHOO_CHART_URLS = ("https://query1.finance.yahoo.com/v8/finance/chart/{symbol}",
+                    "https://query2.finance.yahoo.com/v8/finance/chart/{symbol}")
 
 SBV_CENTRAL_URLS = (  # the SBV home page shows "Tỷ giá trung tâm USD/VND"
     ("sbv.gov.vn", "https://sbv.gov.vn/vi/trang-chu"),
@@ -1273,6 +1293,81 @@ def fetch_pnj_foreign(ts: str) -> list[dict]:
         for source, fn in providers])
 
 
+# --------------------------------------------------------------------------- #
+# Jewellery peer stocks (Yahoo Finance chart API, public, no key)
+# --------------------------------------------------------------------------- #
+def parse_yahoo_chart(payload: dict, symbol: str, name: str, ts: str) -> list[dict]:
+    """Last daily bar of a Yahoo v8 chart response as feed rows.
+
+    Rows: close of the latest session, close of the session before it, session
+    volume and the session date (yyyymmdd). The close is the last non-null daily
+    close; meta.regularMarketPrice is only used when the bars carry none.
+    source_updated_at = meta.regularMarketTime (the exchange's last trade time).
+    """
+    result = ((payload.get("chart") or {}).get("result") or [None])[0]
+    if not result:
+        err = (payload.get("chart") or {}).get("error")
+        raise ValueError(f"yahoo {symbol}: no result ({err})")
+    meta = result.get("meta") or {}
+    currency = meta.get("currency") or ""
+    if not currency:
+        raise ValueError(f"yahoo {symbol}: no currency")
+    times = result.get("timestamp") or []
+    quote = ((result.get("indicators") or {}).get("quote") or [{}])[0]
+    closes, volumes = quote.get("close") or [], quote.get("volume") or []
+    bars = [(t, to_number(c), to_number(volumes[i]) if i < len(volumes) else None)
+            for i, (t, c) in enumerate(zip(times, closes)) if to_number(c) is not None]
+    if bars:
+        last_t, close, volume = bars[-1]
+        prev_close = bars[-2][1] if len(bars) > 1 else to_number(meta.get("chartPreviousClose"))
+    else:
+        last_t, close, volume = meta.get("regularMarketTime"), to_number(meta.get("regularMarketPrice")), None
+        prev_close = to_number(meta.get("chartPreviousClose") or meta.get("previousClose"))
+    if close is None or last_t is None:
+        raise ValueError(f"yahoo {symbol}: no close")
+    close = close.quantize(Decimal("0.001"))
+    tz_offset = meta.get("gmtoffset") or 0  # seconds; session date in the exchange's time
+    session = datetime.fromtimestamp(int(last_t) + int(tz_offset), timezone.utc).strftime("%Y%m%d")
+    label = f"{symbol} {name}"
+    rows = [
+        make_row(ts, "finance.yahoo.com", "stock", "peer_session", f"{label} đóng cửa", close, close,
+                 currency, "1 cp"),
+        make_row(ts, "finance.yahoo.com", "stock", "peer_session", f"{label} đóng cửa phiên trước",
+                 prev_close.quantize(Decimal("0.001")) if prev_close else None,
+                 prev_close.quantize(Decimal("0.001")) if prev_close else None, currency, "1 cp"),
+        make_row(ts, "finance.yahoo.com", "stock", "peer_session", f"{label} khối lượng", volume, volume,
+                 "", "cp"),
+        make_row(ts, "finance.yahoo.com", "stock", "peer_session_date", f"{label} ngày phiên",
+                 Decimal(session), Decimal(session), "", "yyyymmdd"),
+    ]
+    return stamp([r for r in rows if r], to_vn_iso(meta.get("regularMarketTime") or last_t))
+
+
+def fetch_peer_stocks(ts: str) -> list[dict]:
+    """One request per peer; a peer that fails is logged and skipped, the rest still count.
+    Raises only when every peer failed (BlockedError if every failure was a 403/451)."""
+    rows, errors, blocked = [], [], 0
+    for symbol, name in PEER_STOCKS:
+        def provider(url, s=symbol, n=name):
+            return lambda: parse_yahoo_chart(
+                http("GET", url.format(symbol=s), headers=BROWSER_HEADERS,
+                     params={"range": "5d", "interval": "1d"}).json(), s, n, ts)
+        try:
+            rows += first_working(f"Peer {symbol}", [(urlparse(u).hostname, provider(u))
+                                                     for u in YAHOO_CHART_URLS])
+        except BlockedError as exc:
+            blocked += 1
+            errors.append(f"{symbol}: {exc}")
+        except Exception as exc:  # noqa: BLE001 - one peer must not stop the others
+            errors.append(f"{symbol}: {exc}")
+    if errors:
+        log.warning("Peer stocks: %d/%d failed: %s", len(errors), len(PEER_STOCKS), " | ".join(errors))
+    if not rows:
+        message = " | ".join(errors) or "no peers"
+        raise BlockedError(message) if blocked == len(PEER_STOCKS) else RuntimeError(message)
+    return rows
+
+
 # Every source gets one row in health.csv. Sources that refuse non-Vietnam IPs
 # stay listed so health.csv shows blocked_non_vn instead of hiding them.
 FETCHERS = {
@@ -1284,6 +1379,7 @@ FETCHERS = {
     "Metals spot": fetch_metals,
     "PNJ stock": fetch_pnj_stock,
     "PNJ foreign trading": fetch_pnj_foreign,
+    "Peer stocks (Yahoo)": fetch_peer_stocks,
 }
 
 

@@ -1,0 +1,7 @@
+{"chart": {"result": [{"meta": {"currency": "HKD", "symbol": "1929.HK", "exchangeName": "HKG",
+  "regularMarketPrice": 12.48, "regularMarketTime": 1792742880, "chartPreviousClose": 12.9,
+  "gmtoffset": 28800, "exchangeTimezoneName": "Asia/Hong_Kong"},
+  "timestamp": [1792461600, 1792548000, 1792634400, 1792720800],
+  "indicators": {"quote": [{"open": [12.9, 12.8, 12.7, 12.6],
+    "close": [12.86, 12.74, 12.62, 12.48], "volume": [10234000, 9876000, 11223000, 14550000]}]}}],
+  "error": null}}
