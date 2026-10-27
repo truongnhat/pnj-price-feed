@@ -99,8 +99,14 @@ class NotifyEmailTests(unittest.TestCase):
         self.assertEqual(ne.table_rows([xau])[0][8:11],
                          ("120,565,000", "120,565,000", "VND/luong"))
         self.assertIn("Unit VN", text)
+        # single-value quote: shown once under Buy, Sell columns empty
+        self.assertEqual(ne.table_rows([xau | {"price_type": "spot"}])[0][3:10],
+                         ("4,000", "", "new", "", "USD / troy_oz", "120,565,000", ""))
+        # a retail row with equal buy and sell keeps both
+        same = {"item": "X", "price_type": "retail", "buy": "1", "sell": "1", "_prev": None}
+        self.assertEqual(ne.table_rows([same])[0][3:5], ("1", "1"))
         self.assertEqual(rows[1][3:7], ("28,225.74", "29,714.48", "-58.06", "-61.13"))
-        self.assertEqual(rows[2][5:7], ("new", "new"))
+        self.assertEqual(rows[2][4:7], ("", "new", ""))  # XAG spot: one value, Sell empty
         self.assertIn("<table", page)
         self.assertIn("color:#cf222e", page)  # falls shown in red
         self.assertIn("PNJ Nhẫn", text)

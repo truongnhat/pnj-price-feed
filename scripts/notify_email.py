@@ -92,9 +92,18 @@ def _fmt(number: Decimal | None, sign: bool = False) -> str:
     return "0" if sign and number == 0 else text
 
 
+# Quotes that have a single value (spot mid, central rate, a share price or
+# volume, a date): the CSV repeats it in buy and sell, the email shows it once,
+# under Buy, and leaves the Sell columns empty.
+SINGLE_VALUE_TYPES = {"spot", "central", "session", "session_date", "peer_session",
+                      "peer_session_date"}
+
+
 def table_rows(new_rows: list[dict]) -> list[tuple[str, ...]]:
     out = []
     for row in new_rows:
+        single = (row.get("price_type") in SINGLE_VALUE_TYPES
+                  and row.get("buy", "") == row.get("sell", ""))
         prev = row.get("_prev")
         deltas = []
         for col in ("buy", "sell"):
@@ -106,11 +115,14 @@ def table_rows(new_rows: list[dict]) -> list[tuple[str, ...]]:
             else:
                 deltas.append(_fmt(now_v - prev_v, sign=True))
         source_time = (row.get("source_updated_at") or "").replace("T", " ")[:16]
+        sell, sell_vn = _fmt(_num(row.get("sell"))), _fmt(_num(row.get("sell_vn")))
+        if single:
+            sell, deltas[1], sell_vn = "", "", ""
         out.append((row.get("item", ""), row.get("source", ""),
                     f"{row.get('category', '')}/{row.get('price_type', '')}",
-                    _fmt(_num(row.get("buy"))), _fmt(_num(row.get("sell"))), *deltas,
+                    _fmt(_num(row.get("buy"))), sell, *deltas,
                     f"{row.get('currency', '')} / {row.get('unit', '')}",
-                    _fmt(_num(row.get("buy_vn"))), _fmt(_num(row.get("sell_vn"))),
+                    _fmt(_num(row.get("buy_vn"))), sell_vn,
                     row.get("unit_vn", ""), source_time))
     return out
 
