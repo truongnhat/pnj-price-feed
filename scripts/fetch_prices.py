@@ -32,6 +32,19 @@ Columns 1-11 are unchanged since v2. Column 12, source_updated_at, holds the
 time the source itself states (empty when it states none; the run time is
 never substituted). health.csv's source_stale compares it with the run date.
 
+Columns 13-16 (v4) give a VND reading of foreign prices, filled for two kinds
+of row only (empty elsewhere):
+  - USD per troy_oz (XAU, XAG spot)  -> buy_vn/sell_vn in VND per luong
+                                       (1 luong = 37.5 g = 1.20565 troy oz)
+  - price per share ("1 cp")          -> buy_vn/sell_vn in VND per share
+unit_vn names the unit ("VND/luong", "VND/cp"); fx_vn is the VND per 1 unit of
+the row's currency that was used. USD uses the SBV central rate; other
+currencies go through USD with Vietcombank transfer mid rates:
+VND per C = (VCB C mid / VCB USD mid) x SBV central. Rates are the latest ones
+recorded in prices.csv at or before the row's timestamp, so a row's VND value
+is fixed when the price is observed and older rows are back-filled the same
+way. A currency with no recorded rate leaves the row empty: no rate is invented.
+
 No number is ever invented: a source that fails writes no price rows, and its
 existing rows simply stop getting a fresh last_checked.
 
@@ -75,10 +88,17 @@ COLUMNS = [
     "status",
     "last_checked",  # v2: appended, positional readers of the first 10 columns are unaffected
     "source_updated_at",  # v3: appended, the time the source itself states (may be empty)
+    "buy_vn",  # v4: appended, buy converted to VND (see unit_vn); empty if not converted
+    "sell_vn",  # v4
+    "unit_vn",  # v4: VND/luong for USD/troy_oz rows, VND/cp for per-share rows
+    "fx_vn",  # v4: VND per 1 unit of `currency` used for the conversion
 ]
+VN_COLUMNS = ("buy_vn", "sell_vn", "unit_vn", "fx_vn")
 # Older headers (v1: 10 columns, v2: 11 columns) are migrated on read.
 LEGACY_COLUMNS = COLUMNS[:10]
 V2_COLUMNS = COLUMNS[:11]
+V3_COLUMNS = COLUMNS[:12]
+TROY_OZ_PER_LUONG = Decimal("37.5") / Decimal("31.1034768")  # 1 luong = 37.5 g
 KEY_COLUMNS = ("source", "category", "price_type", "item")
 VALUE_COLUMNS = ("buy", "sell", "currency", "unit", "status")
 
@@ -211,7 +231,7 @@ def make_row(ts, source, category, price_type, item, buy, sell, currency, unit) 
         "status": "ok" if buy is not None and sell is not None else "partial",
         "last_checked": ts,
         "source_updated_at": "",  # set by stamp() when the source states a time
-    }
+    } | dict.fromkeys(VN_COLUMNS, "")  # filled by add_vn() before writing
 
 
 def stamp(rows: list[dict], updated_at: str) -> list[dict]:
@@ -1397,10 +1417,15 @@ def read_csv(path: Path) -> list[dict]:
         reader = csv.DictReader(fh)
         if reader.fieldnames == LEGACY_COLUMNS:
             log.info("%s: migrating v1 header, adding last_checked and source_updated_at", path)
-            rows = [{**row, "last_checked": row["timestamp"], "source_updated_at": ""} for row in reader]
+            rows = [{**row, "last_checked": row["timestamp"], "source_updated_at": ""}
+                    | dict.fromkeys(VN_COLUMNS, "") for row in reader]
         elif reader.fieldnames == V2_COLUMNS:
             log.info("%s: migrating v2 header, adding source_updated_at", path)
-            rows = [{**row, "source_updated_at": ""} for row in reader]
+            rows = [{**row, "source_updated_at": ""} | dict.fromkeys(VN_COLUMNS, "")
+                    for row in reader]
+        elif reader.fieldnames == V3_COLUMNS:
+            log.info("%s: migrating v3 header, adding the VND columns", path)
+            rows = [row | dict.fromkeys(VN_COLUMNS, "") for row in reader]
         elif reader.fieldnames == COLUMNS:
             rows = list(reader)
         else:
@@ -1448,6 +1473,75 @@ def merge(history: list[dict], new_rows: list[dict]) -> tuple[list[dict], int]:
         latest[key_of(row)] = row
         added += 1
     return history, added
+
+
+def _dec(value: str | None) -> Decimal | None:
+    try:
+        return Decimal(value) if value else None
+    except InvalidOperation:
+        return None
+
+
+def _mid(row: dict) -> Decimal | None:
+    buy, sell = _dec(row.get("buy")), _dec(row.get("sell"))
+    if buy is not None and sell is not None:
+        return (buy + sell) / 2
+    return None
+
+
+def vn_target(row: dict) -> str | None:
+    """unit_vn for a row that gets a VND reading, else None."""
+    if row.get("currency") == "USD" and row.get("unit") == "troy_oz":
+        return "VND/luong"
+    if row.get("unit") == "1 cp" and row.get("currency"):
+        return "VND/cp"
+    return None
+
+
+def add_vn(history: list[dict]) -> int:
+    """Fill buy_vn/sell_vn/unit_vn/fx_vn on convertible rows that have none yet,
+    using the rates recorded at or before each row's timestamp. Rows already
+    converted keep their values. Returns the number of rows filled."""
+    sbv: Decimal | None = None
+    vcb: dict[str, Decimal] = {}
+    filled = 0
+    # Stable sort: rows of one run share a timestamp; rates come first so a
+    # run's prices use that run's rates.
+    order = sorted(range(len(history)),
+                   key=lambda i: (history[i]["timestamp"], history[i]["category"] != "fx"))
+    for i in order:
+        row = history[i]
+        if row["category"] == "fx":
+            if row["source"] == "sbv.gov.vn" and row["item"] == "USD":
+                sbv = _dec(row["sell"]) or _dec(row["buy"]) or sbv
+            elif row["source"] == "Vietcombank" and row["price_type"] == "transfer":
+                mid = _mid(row)
+                if mid:
+                    vcb[row["item"]] = mid
+            continue
+        unit_vn = vn_target(row)
+        if not unit_vn or row.get("unit_vn"):
+            continue
+        cur = row["currency"]
+        usd = sbv or vcb.get("USD")
+        if cur == "VND":
+            rate = Decimal(1)
+        elif cur == "USD":
+            rate = usd
+        elif usd and vcb.get(cur) and vcb.get("USD"):
+            rate = vcb[cur] / vcb["USD"] * usd
+        else:
+            rate = None
+        if rate is None:
+            continue
+        factor = rate * (TROY_OZ_PER_LUONG if unit_vn == "VND/luong" else 1)
+        for col in ("buy", "sell"):
+            value = _dec(row[col])
+            row[col + "_vn"] = fmt((value * factor).quantize(Decimal(1))) if value is not None else ""
+        row["unit_vn"] = unit_vn
+        row["fx_vn"] = fmt(rate.quantize(Decimal("0.01")))
+        filled += 1
+    return filled
 
 
 def latest_rows(history: list[dict]) -> list[dict]:
@@ -1527,6 +1621,7 @@ def main() -> int:
             unique.append(row)
 
     history, added = merge(read_csv(PRICES_CSV), unique)
+    log.info("VND columns filled on %d rows", add_vn(history))
     write_csv(PRICES_CSV, history)
     write_csv(LATEST_CSV, latest_rows(history))
     write_health(HEALTH_CSV, health)

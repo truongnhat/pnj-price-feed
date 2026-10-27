@@ -19,7 +19,7 @@ Feed giá thị trường công khai, tự cập nhật **mỗi giờ** (phút 1
 | `data/health.csv` | Tình trạng từng nguồn: `ok`, `error` hoặc `blocked_non_vn` (nguồn chặn IP nước ngoài), kèm `source_stale` và `last_checked` (giờ chạy gần nhất, cập nhật mọi lần chạy kể cả khi giá không đổi) |
 
 **Quy tắc đọc dữ liệu**
-- Schema 12 cột cố định. `timestamp` là lần đầu thấy mức giá đó; `last_checked` là lần gần nhất nguồn xác nhận giá còn đúng; `source_updated_at` là giờ cập nhật do **chính nguồn công bố**. Nguồn không công bố giờ thì cột này để trống, không bao giờ lấy giờ chạy thay vào.
+- Schema 16 cột cố định (4 cột quy đổi VND ở cuối: `buy_vn`, `sell_vn`, `unit_vn`, `fx_vn` — giá USD/troy_oz quy ra **VND/lượng**, giá cổ phiếu "1 cp" quy ra **VND/cp**; tỷ giá: USD theo tỷ giá trung tâm NHNN, ngoại tệ khác qua USD theo giá chuyển khoản Vietcombank). 12 cột đầu giữ nguyên. `timestamp` là lần đầu thấy mức giá đó; `last_checked` là lần gần nhất nguồn xác nhận giá còn đúng; `source_updated_at` là giờ cập nhật do **chính nguồn công bố**. Nguồn không công bố giờ thì cột này để trống, không bao giờ lấy giờ chạy thay vào.
 - `health.csv` có cột `source_stale = true` khi giờ cập nhật của nguồn không thuộc ngày chạy (giờ VN). Cuối tuần hoặc ngày lễ, cổ phiếu và tỷ giá trung tâm báo `true` là bình thường.
 - Dòng có `last_checked` cũ hơn 2 giờ là **dữ liệu cũ**: nguồn đang lỗi, xem `health.csv`.
 - Mỗi nhóm có nhiều nguồn dự phòng; cột `source` ghi nguồn đã trả dữ liệu. Nếu cùng một sản phẩm có dòng từ nhiều nguồn, lấy dòng có `last_checked` mới nhất.
@@ -75,6 +75,10 @@ The files are UTF-8 (no BOM), comma-separated, with `\n` line endings and a head
 | `status` | string | `ok` = buy and sell both present; `partial` = only one of them (e.g. a bank does not buy that currency in cash) | `ok` |
 | `last_checked` | ISO-8601, `+07:00` | Vietnam time of the **most recent successful check** of the source that returned this price. Updated on every run where the source responds, even if the price did not change | `2026-10-03T14:17:04+07:00` |
 | `source_updated_at` | ISO-8601, `+07:00`, or empty | The update time **stated by the source itself**, for the latest successful check. **Empty when the source states none: the run time is never substituted.** A source that only gives a date (e.g. the SBV central rate "áp dụng cho ngày …") gives 00:00 of that date | `2026-10-03T15:20:00+07:00` |
+| `buy_vn` | integer or empty | `buy` converted to VND (unit in `unit_vn`). Filled only for USD per `troy_oz` rows (→ VND per lượng, 1 lượng = 37.5 g = 1.20565 troy oz) and per-share `1 cp` rows (→ VND per share); empty elsewhere | `124415349` |
+| `sell_vn` | integer or empty | `sell` converted the same way | `124415349` |
+| `unit_vn` | string or empty | `VND/luong` or `VND/cp` | `VND/luong` |
+| `fx_vn` | decimal or empty | VND per 1 unit of `currency` used. USD: SBV central rate. Other currencies: Vietcombank transfer mid ÷ Vietcombank USD transfer mid × SBV central rate. Rates are the latest recorded at or before the row's `timestamp`; a value is never recomputed later. No recorded rate → all four columns empty | `25633` |
 
 Notes:
 - **Key** = (`source`, `category`, `price_type`, `item`). `latest.csv` has exactly one row per key.

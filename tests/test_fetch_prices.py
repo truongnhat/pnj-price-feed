@@ -275,7 +275,7 @@ class CsvTests(unittest.TestCase):
             header = (root / name).read_text(encoding="utf-8").splitlines()[0]
             # Tests run before the fetch step, so the committed file may still carry
             # an older header (v1/v2); the run migrates it. It must be a known prefix.
-            self.assertIn(header.split(","), (fp.COLUMNS, fp.V2_COLUMNS, fp.LEGACY_COLUMNS))
+            self.assertIn(header.split(","), (fp.COLUMNS, fp.V3_COLUMNS, fp.V2_COLUMNS, fp.LEGACY_COLUMNS))
             self.assertIsNone(re.search(r"\s", header))
 
 
