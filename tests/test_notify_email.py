@@ -91,7 +91,14 @@ class NotifyEmailTests(unittest.TestCase):
         rows = ne.table_rows(new)
         self.assertEqual(rows[0][3:8], ("138,800,000", "142,800,000", "-1,000,000", "0",
                                         "VND / luong"))
-        self.assertEqual(rows[0][8], "2026-10-05 17:45")
+        self.assertEqual(rows[0][-1], "2026-10-05 17:45")
+        self.assertEqual(rows[0][8:11], ("", "", ""))  # v3 file: no VND columns
+        xau = {"item": "XAU", "buy": "4000", "sell": "4000", "currency": "USD",
+               "unit": "troy_oz", "buy_vn": "120565000", "sell_vn": "120565000",
+               "unit_vn": "VND/luong", "_prev": None}
+        self.assertEqual(ne.table_rows([xau])[0][8:11],
+                         ("120,565,000", "120,565,000", "VND/luong"))
+        self.assertIn("Unit VN", text)
         self.assertEqual(rows[1][3:7], ("28,225.74", "29,714.48", "-58.06", "-61.13"))
         self.assertEqual(rows[2][5:7], ("new", "new"))
         self.assertIn("<table", page)

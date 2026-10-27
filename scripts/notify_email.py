@@ -38,6 +38,7 @@ PRICES_CSV = DATA_DIR / "prices.csv"
 KEY_COLUMNS = ("source", "category", "price_type", "item")  # same as fetch_prices.py
 MAX_TABLE_ROWS = 300  # keeps the email readable (and under Gmail's clipping size)
 TABLE_HEADERS = ("Item", "Source", "Type", "Buy", "Sell", "Δ Buy", "Δ Sell", "Unit",
+                 "Buy VND", "Sell VND", "Unit VN",
                  "Source time")
 
 
@@ -99,13 +100,15 @@ def table_rows(new_rows: list[dict]) -> list[tuple[str, ...]]:
         out.append((row.get("item", ""), row.get("source", ""),
                     f"{row.get('category', '')}/{row.get('price_type', '')}",
                     _fmt(_num(row.get("buy"))), _fmt(_num(row.get("sell"))), *deltas,
-                    f"{row.get('currency', '')} / {row.get('unit', '')}", source_time))
+                    f"{row.get('currency', '')} / {row.get('unit', '')}",
+                    _fmt(_num(row.get("buy_vn"))), _fmt(_num(row.get("sell_vn"))),
+                    row.get("unit_vn", ""), source_time))
     return out
 
 
 def text_table(rows: list[tuple[str, ...]]) -> str:
     widths = [max(len(h), *(len(r[i]) for r in rows)) for i, h in enumerate(TABLE_HEADERS)]
-    numeric = {3, 4, 5, 6}
+    numeric = {3, 4, 5, 6, 8, 9}
     def line(cells):
         return " | ".join(c.rjust(w) if i in numeric else c.ljust(w)
                           for i, (c, w) in enumerate(zip(cells, widths))).rstrip()
@@ -121,7 +124,7 @@ def html_table(rows: list[tuple[str, ...]]) -> str:
     for r in rows:
         tds = []
         for i, c in enumerate(r):
-            style = cell + ("text-align:right;" if i in (3, 4, 5, 6) else "")
+            style = cell + ("text-align:right;" if i in (3, 4, 5, 6, 8, 9) else "")
             if i in (5, 6) and c.startswith("+"):
                 style += "color:#1a7f37;"
             elif i in (5, 6) and c.startswith("-"):
