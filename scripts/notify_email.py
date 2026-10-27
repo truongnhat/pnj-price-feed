@@ -37,6 +37,15 @@ HEALTH_CSV = DATA_DIR / "health.csv"
 PRICES_CSV = DATA_DIR / "prices.csv"
 KEY_COLUMNS = ("source", "category", "price_type", "item")  # same as fetch_prices.py
 MAX_TABLE_ROWS = 300  # keeps the email readable (and under Gmail's clipping size)
+# Columns of prices.csv deliberately NOT shown in the email table, with the reason.
+# Every other column must appear in table_rows(); tests/test_schema_contract.py
+# fails when a new column is added to fetch_prices.COLUMNS and forgotten here.
+EMAIL_HIDDEN_COLUMNS = {
+    "timestamp": "same for every row of a run; the run time is in the summary",
+    "status": "ok/partial is visible from empty Buy or Sell cells",
+    "last_checked": "equals the run time for every row in the table",
+    "fx_vn": "the rate used for Buy VND / Sell VND; kept in the CSV for audit",
+}
 TABLE_HEADERS = ("Item", "Source", "Type", "Buy", "Sell", "Δ Buy", "Δ Sell", "Unit",
                  "Buy VND", "Sell VND", "Unit VN",
                  "Source time")
