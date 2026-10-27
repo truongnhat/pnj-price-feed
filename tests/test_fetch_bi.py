@@ -487,6 +487,18 @@ class TestBiFeed(unittest.TestCase):
         self.assertFalse(pat.search("Mike tried to say deployment savvy and invented Deplavity"))
         self.assertFalse(pat.search("Deploy the migrated objects; deployment completes in minutes"))
 
+    # ---- C49: Pricing pattern must not match a bare "price" in unrelated posts
+    def test_pricing_pattern(self):
+        kws = {k["keyword"]: k for k in fb.load_keywords()}
+        pat = re.compile(kws["Pricing"]["pattern"], re.I)
+        self.assertTrue(pat.search("Dynamic pricing model in Power BI"))
+        self.assertTrue(pat.search("Price elasticity with DAX"))
+        self.assertTrue(pat.search("Tracking gold price volatility"))
+        self.assertTrue(pat.search("Building a price list table"))
+        self.assertFalse(pat.search("Do candlestick charts show price action well in 2026?"))
+        self.assertFalse(pat.search("Is the license price worth it for downloading Power BI Desktop?"))
+        self.assertFalse(pat.search("Export the report to Markdown"))
+
     def test_page_fetch_failure_keeps_rss_text(self):
         now = datetime.fromisoformat("2026-10-18T12:00:00+07:00")
         new = [{"source": "Power BI Blog", "tier": "T1", "title": "T", "url": "t",

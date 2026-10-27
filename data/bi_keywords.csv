@@ -26,7 +26,7 @@ Platform,Semantic model,semantic model
 Platform,Fabric Apps,fabric apps?
 Platform,Writeback / Planning,writeback|write-back|planning
 Retail domain,Inventory / forecasting,inventory|forecast
-Retail domain,Pricing,pricing|price
+Retail domain,Pricing,\bpricing\b|price (elasticity|optimi[sz]ation|bands?|lists?|tiers?|points?)|gold prices?|markdown pricing
 Retail domain,Customer 360 / loyalty,customer 360|loyalty|\bcrm\b|segmentation
 Retail domain,Retail,retail
 Career,Data Architect,data architect|solution architect
