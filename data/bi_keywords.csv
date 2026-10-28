@@ -13,7 +13,7 @@ Performance,Custom SQL Pools,sql pools?\b|workload (isolation|management)
 Performance,Approximate distinct count,approximatedistinctcount|approx\w* distinct
 Governance,CI/CD & Git,ci/?cd|fabric-cicd|\bgit\b|git integration|deployment pipelines?|deployment plans?|deployment rules?
 Governance,OneLake security,onelake security
-Governance,Purview / catalog,purview|catalog
+Governance,Purview / catalog,purview|onelake catalog|data catalog|unity catalog|governance catalog
 Governance,RLS / OLS,\brls\b|\bols\b|row.level security
 AI on model,MCP,\bmcp\b
 AI on model,Copilot,copilot
@@ -33,7 +33,7 @@ Career,Data Architect,data architect|solution architect
 Career,Head of Data / CDO,head of data|chief data|\bcdo\b|director of data
 Career,Analytics Engineer,analytics engineer
 Career,Power BI Developer,power bi (developer|engineer|consultant)
-Career,Microsoft Fabric skill,microsoft fabric|\bfabric\b
+Career,Microsoft Fabric skill,microsoft fabric|\bms fabric\b|onelake|fabric (lakehouse|warehouse|capacity|notebooks?|pipelines?|data ?factory|data ?engineer\w*|semantic models?|real-time|workspaces?|admin\w*|apps?|iq|dw|sql|platform|skills?|certif\w*)
 Performance,Throttling,throttl\w*|surge protection|smoothing
 Platform,SSAS / Analysis Services,analysis services|\bssas\b|on-prem(ises)? (data )?gateway|\bgateway\b|tabular model
-Governance,Fabric Policies,fabric polic\w*|granular governance|policy sets?
+Governance,Fabric Policies,fabric polic\w*|policies center|policies in fabric|granular governance|policy sets?

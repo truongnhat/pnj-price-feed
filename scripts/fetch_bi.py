@@ -100,8 +100,6 @@ FEEDS: list[tuple[str, str, str, str, str]] = [
     ("Chris Webb", "https://blog.crossjoin.co.uk/feed/", "T2", "craft", "rss"),
     ("Tabular Editor blog", "https://tabulareditor.com/blog/rss.xml", "T2", "craft", "rss"),
     ("fabric.guru (Sandeep Pawar)", "https://fabric.guru/rss.xml|https://fabric.guru/feed", "T2", "craft", "rss"),
-    ("kerski.tech (John Kerski)",
-     "https://www.kerski.tech/feed|https://www.kerski.tech/rss.xml|https://kerski.tech/feed", "T2", "craft", "rss"),
     ("powerbi.tips", "https://powerbi.tips/feed|https://powerbi.tips/rss.xml|https://powerbi.tips/index.xml",
      "T2", "craft", "rss"),
     ("Guy in a Cube (YouTube)",
