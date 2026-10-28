@@ -499,6 +499,31 @@ class TestBiFeed(unittest.TestCase):
         self.assertFalse(pat.search("Is the license price worth it for downloading Power BI Desktop?"))
         self.assertFalse(pat.search("Export the report to Markdown"))
 
+    def test_fabric_skill_pattern(self):
+        kws = {k["keyword"]: k for k in fb.load_keywords()}
+        pat = re.compile(kws["Microsoft Fabric skill"]["pattern"], re.I)
+        self.assertTrue(pat.search("Senior Data Engineer (Microsoft Fabric, Databricks)"))
+        self.assertTrue(pat.search("Experience with Fabric Lakehouse and OneLake"))
+        self.assertTrue(pat.search("skills: fabric data factory, power bi"))
+        self.assertFalse(pat.search("skills: fabric, process costing, cost per piece"))
+        self.assertFalse(pat.search("Fabric sourcing executive for garment factory"))
+
+    def test_fabric_policies_pattern(self):
+        kws = {k["keyword"]: k for k in fb.load_keywords()}
+        pat = re.compile(kws["Fabric Policies"]["pattern"], re.I)
+        self.assertTrue(pat.search("Policies Center (Preview): configure governance policies"))
+        self.assertTrue(pat.search("Policies in Fabric support attribute-based controls"))
+        self.assertTrue(pat.search("Fabric Policies (Preview)"))
+        self.assertFalse(pat.search("Privacy policy update"))
+
+    def test_purview_catalog_pattern(self):
+        kws = {k["keyword"]: k for k in fb.load_keywords()}
+        pat = re.compile(kws["Purview / catalog"]["pattern"], re.I)
+        self.assertTrue(pat.search("Govern your data estate with the OneLake catalog"))
+        self.assertTrue(pat.search("Microsoft Purview DLP for Copilot"))
+        self.assertFalse(pat.search("its current inlineability is reflected in the system catalog view"))
+        self.assertFalse(pat.search("check the sys.sql_modules catalog view"))
+
     def test_page_fetch_failure_keeps_rss_text(self):
         now = datetime.fromisoformat("2026-10-18T12:00:00+07:00")
         new = [{"source": "Power BI Blog", "tier": "T1", "title": "T", "url": "t",
