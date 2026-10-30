@@ -535,6 +535,26 @@ class TestBiFeed(unittest.TestCase):
         out = fb.build_articles([], new, now, "ts", boom)
         self.assertEqual(out[0]["text"], "short teaser")
 
+    # ---- C60: SSAS pattern must not match non-Power BI gateways (S3/API/payment)
+    def test_ssas_gateway_pattern(self):
+        kws = {k["keyword"]: k for k in fb.load_keywords()}
+        pat = re.compile(kws["SSAS / Analysis Services"]["pattern"], re.I)
+        self.assertTrue(pat.search("On-premises data gateway October 2026 release"))
+        self.assertTrue(pat.search("Power bi import gateway strategy"))
+        self.assertTrue(pat.search("Live connection to SQL Server Analysis Services"))
+        self.assertFalse(pat.search("lakeFS exposes versioned data through an S3-compatible gateway"))
+        self.assertFalse(pat.search("Expose the model through an API gateway"))
+        self.assertFalse(pat.search("Integrate the payment gateway data"))
+
+    # ---- C55: Model validation / UAT keyword
+    def test_model_validation_pattern(self):
+        kws = {k["keyword"]: k for k in fb.load_keywords()}
+        pat = re.compile(kws["Model validation / UAT"]["pattern"], re.I)
+        self.assertTrue(pat.search("DAXBench V2 is here (in collaboration with SQLBI)"))
+        self.assertTrue(pat.search("Validate every model change: deploy it right (part 2)"))
+        self.assertTrue(pat.search("UAT checklist before report sign-off"))
+        self.assertFalse(pat.search("Quality engineer for high-speed cables"))
+
 
 if __name__ == "__main__":
     unittest.main()
