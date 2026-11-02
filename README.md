@@ -9,6 +9,7 @@ Feed giá thị trường công khai, tự cập nhật **mỗi giờ** (phút 1
 - **Tỷ giá:** Vietcombank (tiền mặt, chuyển khoản) và tỷ giá trung tâm USD/VND của NHNN (`price_type=central`).
 - **Vàng/bạc thế giới:** XAU, XAG (USD/oz).
 - **Cổ phiếu PNJ (HOSE):** ngày phiên, giá mở cửa, cao nhất, thấp nhất, đóng cửa, khối lượng khớp lệnh, khối ngoại mua/bán (`category=stock`). Giá trị khối ngoại chỉ được ghi khi khớp với giá đóng cửa (sai lệch không quá 20%).
+- **Sở hữu nước ngoài PNJ (từ 02/11/2026):** % sở hữu NN, FOL (sở hữu ÷ room 49%), room còn lại (bảng giá Vietcap) và **FOL bình quân 12 tháng** kèm số phiên đã tính — dùng để báo trước rủi ro bị loại khỏi rổ VNDiamond. Lịch sử bắt đầu từ 02/11/2026 nên bình quân còn ngắn cho tới khi đủ 1 năm.
 
 **Các file**
 
@@ -47,6 +48,7 @@ Where several providers are listed, they are tried in order and the **first one 
 | `Metals spot` | `gold`, `silver` / `spot` | `gold-api.com` → `goldprice.org` → `stooq.com` | XAU, XAG in USD per troy oz |
 | `PNJ stock` | `stock` / `session`, `session_date` | Vietcap → TCBS → VNDirect → CafeF | Latest HOSE session (see below). During trading hours the latest bar is the session in progress |
 | `PNJ foreign trading` | `stock` / `foreign`, `session_date` | Vietcap price board → VNDirect | Foreign investors' buy/sell (see below) |
+| `PNJ foreign room` | `stock` / `foreign_room` (+ derived `foreign_room_avg`) | Vietcap price board | Foreign ownership %, FOL and room left; 12-month average FOL computed from history (see below) |
 | `Peer stocks (Yahoo)` | `stock` / `peer_session`, `peer_session_date` | Yahoo Finance chart API (query1 → query2) | Jewellery peers: Chow Tai Fook 1929.HK, Luk Fook 0590.HK, Chow Sang Sang 0116.HK, Laopu Gold 6181.HK, Lao Feng Xiang 600612.SS, LVMH MC.PA, Richemont CFR.SW, Pandora PNDORA.CO, Titan TITAN.NS (see below) |
 
 ## Files
@@ -119,8 +121,15 @@ The schema has no date column, so the session date is a row of its own.
 | `PNJ NN ngày phiên` | `session_date` | foreign-trading session date `yyyymmdd` | same | empty | `yyyymmdd` |
 | `PNJ NN KL mua/bán` | `foreign` | foreign **buy** volume | foreign **sell** volume | empty | `cp` |
 | `PNJ NN GT mua/bán` | `foreign` | foreign **buy** value | foreign **sell** value | `VND` | `VND` |
+| `PNJ NN sở hữu %` | `foreign_room` | % of outstanding shares held by foreigners | same | empty | `%` |
+| `PNJ NN FOL %` | `foreign_room` | FOL = foreign holding ÷ foreign limit (49%), the ratio VNDiamond screens on | same | empty | `%` |
+| `PNJ NN room còn lại` | `foreign_room` | shares foreigners can still buy | same | empty | `cp` |
+| `PNJ NN FOL bình quân 12 tháng %` | `foreign_room_avg` | average daily FOL over the last 12 months (source `feed (từ vietcap.com.vn)`) | same | empty | `%` |
+| `PNJ NN FOL số phiên tính bình quân` | `foreign_room_avg` | number of weekdays behind that average | same | empty | `phiên` |
 
 Prices quoted in thousand VND are converted to VND per share.
+
+**Foreign room.** Vietcap's board gives `currentRoom` (shares foreigners may still buy) and `totalRoom` (the foreign limit in shares). Holding = totalRoom − currentRoom; outstanding = totalRoom ÷ 0.49 (a warning is logged if that is more than 5% off PNJ's 511,721,952 shares). **12-month average FOL:** `prices.csv` records a value only when it changes, so the daily series is rebuilt by carrying each recorded FOL forward over weekdays (holidays count as unchanged days), over the last 365 days or since the first recorded value. History starts on 2026-11-02, so until a year has passed the average covers fewer sessions — always read it with `PNJ NN FOL số phiên tính bình quân`.
 
 **Foreign trading values are cross-checked.** Value ÷ volume is what foreign investors paid per share, so after converting the provider's unit (VND, thousand, million or billion VND) it must be within 20% of the same run's `PNJ đóng cửa`. If no close was fetched in the run, or no unit fits, the `PNJ NN GT mua/bán` row is left out and the run logs the raw values. The volume row is still written. `PNJ NN ngày phiên` is written only when the provider states the session date.
 

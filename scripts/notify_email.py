@@ -96,7 +96,7 @@ def _fmt(number: Decimal | None, sign: bool = False) -> str:
 # volume, a date): the CSV repeats it in buy and sell, the email shows it once,
 # under Buy, and leaves the Sell columns empty.
 SINGLE_VALUE_TYPES = {"spot", "central", "session", "session_date", "peer_session",
-                      "peer_session_date"}
+                      "peer_session_date", "foreign_room", "foreign_room_avg"}
 
 
 def table_rows(new_rows: list[dict]) -> list[tuple[str, ...]]:

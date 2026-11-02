@@ -67,7 +67,7 @@ import sys
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Callable
@@ -882,6 +882,60 @@ def parse_vci_board_foreign(payload) -> dict:
     return found
 
 
+def parse_vci_board_room(payload) -> dict:
+    """Foreign room of the Vietcap price board entry: {"current_room", "total_room",
+    "updated_at"}. current_room = shares foreigners may still buy, total_room =
+    the foreign limit in shares (49% of outstanding for PNJ)."""
+    item = payload[0] if isinstance(payload, list) and payload else payload
+    if not isinstance(item, dict):
+        raise ValueError(f"no board entry, body {json.dumps(payload, ensure_ascii=False)[:300]!r}")
+    flat = {}
+    for part in item.values():
+        if isinstance(part, dict):
+            flat.update({k: v for k, v in part.items() if not isinstance(v, (dict, list))})
+    def pick(word):
+        for key, value in flat.items():
+            k = key.lower()
+            if "room" in k and word in k:
+                return value
+        return None
+    found = {"current_room": pick("current"), "total_room": pick("total")}
+    if found["current_room"] is None or found["total_room"] is None:
+        raise ValueError(f"no currentRoom/totalRoom fields; fields: {sorted(flat)[:60]}")
+    times = [to_vn_iso(v) for k, v in flat.items()
+             if re.search(r"time|tradingdate", k, re.I) and v not in (None, "", 0)]
+    found["updated_at"] = max((t for t in times if t), default="")
+    return found
+
+
+# Foreign ownership limit of PNJ (fraction of outstanding shares) and the share
+# count used only to sanity-check the board's totalRoom.
+FOREIGN_LIMIT = Decimal("0.49")
+PNJ_SHARES = Decimal("511721952")
+
+
+def stock_room_rows(room: dict, source: str, ts: str) -> list[dict]:
+    """Foreign ownership rows: % of outstanding shares held by foreigners, FOL
+    (held / foreign limit, the ratio VNDiamond screens on) and room left."""
+    current = parse_number(room.get("current_room"), allow_zero=True)
+    total = parse_number(room.get("total_room"))
+    if current is None or total is None or current > total:
+        raise ValueError(f"{source}: bad room values current={room.get('current_room')} "
+                         f"total={room.get('total_room')}")
+    held = total - current
+    outstanding = total / FOREIGN_LIMIT
+    if abs(outstanding / PNJ_SHARES - 1) > Decimal("0.05"):
+        log.warning("%s: totalRoom %s implies %s shares outstanding, expected ~%s",
+                    source, total, outstanding.quantize(Decimal(1)), PNJ_SHARES)
+    pct = (held / outstanding * 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    fol = (held / total * 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    rows = [make_row(ts, source, "stock", "foreign_room", f"{STOCK} NN sở hữu %", pct, pct, "", "%"),
+            make_row(ts, source, "stock", "foreign_room", f"{STOCK} NN FOL %", fol, fol, "", "%"),
+            make_row(ts, source, "stock", "foreign_room", f"{STOCK} NN room còn lại",
+                     current, current, "", "cp")]
+    return stamp(rows, room.get("updated_at", ""))
+
+
 def parse_tcbs_bars(payload: dict) -> dict:
     """{"ticker": "PNJ", "data": [{"open", "high", "low", "close", "volume", "tradingDate"}]}"""
     rec = max(_records(payload, "data"), key=lambda r: str(r.get("tradingDate")))
@@ -1313,6 +1367,14 @@ def fetch_pnj_foreign(ts: str) -> list[dict]:
         for source, fn in providers])
 
 
+def fetch_pnj_room(ts: str) -> list[dict]:
+    # Only the Vietcap board states the foreign room; no fallback provider.
+    return first_working("PNJ foreign room", [
+        ("vietcap.com.vn", lambda: stock_room_rows(
+            parse_vci_board_room(_vci_post(VCI_BOARD_URL, {"symbols": [STOCK]})),
+            "vietcap.com.vn", ts))])
+
+
 # --------------------------------------------------------------------------- #
 # Jewellery peer stocks (Yahoo Finance chart API, public, no key)
 # --------------------------------------------------------------------------- #
@@ -1399,6 +1461,7 @@ FETCHERS = {
     "Metals spot": fetch_metals,
     "PNJ stock": fetch_pnj_stock,
     "PNJ foreign trading": fetch_pnj_foreign,
+    "PNJ foreign room": fetch_pnj_room,
     "Peer stocks (Yahoo)": fetch_peer_stocks,
 }
 
@@ -1544,6 +1607,52 @@ def add_vn(history: list[dict]) -> int:
     return filled
 
 
+FOL_ITEM = f"{STOCK} NN FOL %"
+FOL_WINDOW_DAYS = 365
+
+
+def room_average_rows(history: list[dict], ts: str) -> list[dict]:
+    """12-month average FOL (VNDiamond keeps a stock on its trailing average).
+
+    prices.csv only records a value when it changes, so the daily series is
+    rebuilt by carrying each recorded FOL forward over weekdays (holidays are
+    counted as unchanged days). The day of a value is the source's own time,
+    else the time the feed first saw it. The window starts at the first
+    recorded value when that is younger than 12 months, so the session count
+    row tells how much history the average really covers.
+    """
+    by_day: dict[str, Decimal] = {}
+    for row in history:
+        if row["item"] != FOL_ITEM or row["price_type"] != "foreign_room":
+            continue
+        value = _dec(row["buy"])
+        day = (row.get("source_updated_at") or row["timestamp"])[:10]
+        if value is not None and day:
+            by_day[day] = value  # history is in time order: last value of the day wins
+    if not by_day:
+        return []
+    today = datetime.fromisoformat(ts).date()
+    start = max(datetime.fromisoformat(min(by_day)).date(), today - timedelta(days=FOL_WINDOW_DAYS))
+    days = sorted(by_day)
+    current, values, d = None, [], start
+    for day in days:  # value in force at the window start
+        if day <= start.isoformat():
+            current = by_day[day]
+    while d <= today:
+        current = by_day.get(d.isoformat(), current)
+        if d.weekday() < 5 and current is not None:
+            values.append(current)
+        d += timedelta(days=1)
+    if not values:
+        return []
+    avg = (sum(values) / len(values)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    n = Decimal(len(values))
+    return [make_row(ts, "feed (từ vietcap.com.vn)", "stock", "foreign_room_avg",
+                     f"{STOCK} NN FOL bình quân 12 tháng %", avg, avg, "", "%"),
+            make_row(ts, "feed (từ vietcap.com.vn)", "stock", "foreign_room_avg",
+                     f"{STOCK} NN FOL số phiên tính bình quân", n, n, "", "phiên")]
+
+
 def latest_rows(history: list[dict]) -> list[dict]:
     latest = {key_of(r): r for r in history}
     return sorted(latest.values(), key=key_of)
@@ -1621,6 +1730,9 @@ def main() -> int:
             unique.append(row)
 
     history, added = merge(read_csv(PRICES_CSV), unique)
+    # Derived from history, so computed after this run's rows are merged.
+    history, added_avg = merge(history, room_average_rows(history, ts))
+    added += added_avg
     log.info("VND columns filled on %d rows", add_vn(history))
     write_csv(PRICES_CSV, history)
     write_csv(LATEST_CSV, latest_rows(history))
