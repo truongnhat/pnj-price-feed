@@ -19,7 +19,7 @@ AI on model,MCP,\bmcp\b
 AI on model,Copilot,copilot
 AI on model,Fabric IQ / data agent,fabric iq|data agent
 AI on model,AI agent,\bagents?\b|agentic
-AI on model,Semantic link,semantic.link|\bsempy\b
+AI on model,Semantic link,semantic.link|\bsempy(_labs)?\b
 AI on model,DAX contract,dax contract
 AI on model,Claude / LLM,claude|\bllm|gpt
 Platform,Semantic model,semantic model
@@ -38,3 +38,4 @@ Performance,Throttling,throttl\w*|surge protection|smoothing
 Platform,SSAS / Analysis Services,analysis services|\bssas\b|on-prem(ises)? (data )?gateway|(?<!compatible )(?<!api )(?<!payment )\bgateway\b|tabular model
 Governance,Fabric Policies,fabric polic\w*|policies center|policies in fabric|granular governance|policy sets?
 Governance,Model validation / UAT,daxbench|model validation|validate (every )?model changes?|\buat\b|sign.?off
+AI on model,Skills for Fabric,skills for fabric|govern skills|fabric-skills
