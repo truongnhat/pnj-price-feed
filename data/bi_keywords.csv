@@ -24,7 +24,7 @@ AI on model,DAX contract,dax contract
 AI on model,Claude / LLM,claude|\bllm|gpt
 Platform,Semantic model,semantic model
 Platform,Fabric Apps,fabric apps?
-Platform,Writeback / Planning,writeback|write-back|planning
+Platform,Writeback / Planning,writeback|write-back|write back to|translytical|(financial|budget|demand|sales|supply|inventory) planning|planning (models?|sheets?|apps?)|\bfp&a\b
 Retail domain,Inventory / forecasting,inventory|forecast
 Retail domain,Pricing,\bpricing\b|price (elasticity|optimi[sz]ation|bands?|lists?|tiers?|points?)|gold prices?|markdown pricing
 Retail domain,Customer 360 / loyalty,customer 360|loyalty|\bcrm\b|segmentation

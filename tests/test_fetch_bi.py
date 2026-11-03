@@ -568,6 +568,18 @@ class TestBiFeed(unittest.TestCase):
         self.assertTrue(sk.search("OneLake catalog Govern Skills GA"))
         self.assertFalse(sk.search("Microsoft Fabric skill is in demand"))
 
+    # ---- C65: Writeback / Planning must not match a bare "planning"
+    def test_writeback_planning_pattern(self):
+        kws = {k["keyword"]: k for k in fb.load_keywords()}
+        pat = re.compile(kws["Writeback / Planning"]["pattern"], re.I)
+        self.assertTrue(pat.search("Fabric App with write-back into Fabric SQL database"))
+        self.assertTrue(pat.search("Translytical task flows for writeback"))
+        self.assertTrue(pat.search("Demand planning model in Power BI"))
+        self.assertTrue(pat.search("Budget planning sheets with FP&A teams"))
+        self.assertFalse(pat.search("Planning to take the PL-300 exam as a fresher"))
+        self.assertFalse(pat.search("How to efficiently transform messy Excel files in Power Query? planning a cleanup"))
+        self.assertFalse(pat.search("helps with capacity planning for private connectivity"))
+
     # ---- C47: re-dated old posts get first_pub_date + republished flag
     def test_merge_flags_republished(self):
         now = datetime(2026, 10, 27, 12, tzinfo=fb.VN)
