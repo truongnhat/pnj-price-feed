@@ -568,6 +568,86 @@ class TestBiFeed(unittest.TestCase):
         self.assertTrue(sk.search("OneLake catalog Govern Skills GA"))
         self.assertFalse(sk.search("Microsoft Fabric skill is in demand"))
 
+    # ---- C47: re-dated old posts get first_pub_date + republished flag
+    def test_merge_flags_republished(self):
+        now = datetime(2026, 10, 27, 12, tzinfo=fb.VN)
+        old = [{"url": "u1", "source": "Power BI Blog", "tier": "T1", "title": "Apache Ossie", "category": "new",
+                "pub_date": "2026-10-22T00:55:00+07:00", "timestamp": "t0", "flags": ""}]
+        new = [{"url": "u1", "source": "Power BI Blog", "tier": "T1", "title": "Apache Ossie", "category": "new",
+                "pub_date": "2026-10-27T01:44:00+07:00", "flags": ""}]
+        out = fb.merge(old, new, "t1", now)
+        self.assertEqual(out[0]["first_pub_date"], "2026-10-22T00:55:00+07:00")
+        self.assertIn("republished", out[0]["flags"])
+        self.assertEqual(out[0]["timestamp"], "t0")
+
+    def test_merge_seeds_first_pub_from_articles_and_cuts_by_it(self):
+        now = datetime(2026, 11, 7, 12, tzinfo=fb.VN)
+        row = {"url": "u1", "source": "Fabric Blog", "tier": "T1", "title": "FNTK", "category": "new",
+               "pub_date": "2026-10-27T00:22:00+07:00", "flags": ""}
+        out = fb.merge([row], [], "t", datetime(2026, 10, 28, tzinfo=fb.VN),
+                       known_pub={"u1": "2026-10-21T23:44:00+07:00"})
+        self.assertIn("republished", out[0]["flags"])
+        # 14-day window counts from the original date: gone by 07/11
+        self.assertEqual(fb.merge(out, [], "t", now), [])
+
+    def test_small_date_shift_is_not_republished(self):
+        now = datetime(2026, 10, 27, 12, tzinfo=fb.VN)
+        old = [{"url": "u", "title": "x", "category": "new", "pub_date": "2026-10-27T01:00:00+07:00", "flags": ""}]
+        new = [{"url": "u", "title": "x", "category": "new", "pub_date": "2026-10-27T03:00:00+07:00", "flags": ""}]
+        self.assertNotIn("republished", fb.merge(old, new, "t", now)[0]["flags"])
+
+    def test_trends_use_first_pub_date(self):
+        now = datetime(2026, 10, 30, tzinfo=fb.VN)
+        rows = [{"url": "u", "title": "Apache Ossie DAX", "summary": "", "category": "new", "tier": "T1",
+                 "pub_date": "2026-10-27T01:44:00+07:00", "first_pub_date": "2026-10-20T00:55:00+07:00",
+                 "flags": "republished"}]
+        kws = [{"group": "g", "keyword": "DAX", "pattern": r"\bdax\b"}]
+        r = fb.compute_trends(rows, kws, now, "ts")[0]
+        self.assertEqual((r["news_7d"], r["news_prev_7d"]), (0, 1))
+
+    # ---- C61: copies of one story count once
+    def _daxbench_rows(self):
+        return [
+            {"url": "r1", "source": "r/PowerBI top day", "tier": "T3", "category": "craft",
+             "title": "DAXBench V2 is here (in collaboration with SQLBI)",
+             "summary": "DAX Benchmark v2 is public today. DAXBench is the benchmark of how well LLMs write DAX.",
+             "pub_date": "2026-10-27T18:22:52+07:00", "flags": ""},
+            {"url": "s1", "source": "SQLBI", "tier": "T2", "category": "craft", "title": "DAX LLM Benchmark v2.0 Trailer",
+             "summary": "Which LLMs are ready to write DAX? Check it out at https://www.daxbench.com/",
+             "pub_date": "2026-10-27T18:00:00+07:00", "flags": ""},
+            {"url": "s2", "source": "SQLBI", "tier": "T2", "category": "craft", "title": "DAX LLM Benchmark v2",
+             "summary": "The DAX LLM Benchmark v2 shows that the latest frontier models write DAX very well.",
+             "pub_date": "2026-10-27T17:45:53+07:00", "flags": ""},
+            {"url": "s3", "source": "SQLBI", "tier": "T2", "category": "craft", "title": "Visual calculations in DAX",
+             "summary": "A pattern for running totals.", "pub_date": "2026-10-27T10:00:00+07:00", "flags": ""},
+        ]
+
+    def test_story_keys_groups_reposts(self):
+        keys = fb.story_keys(self._daxbench_rows())
+        self.assertEqual(len({keys["r1"], keys["s1"], keys["s2"]}), 1)
+        self.assertNotEqual(keys["s3"], keys["s1"])
+
+    def test_story_keys_never_merges_two_t1_posts(self):
+        rows = [{"url": "a", "source": "Fabric Blog", "tier": "T1", "category": "new",
+                 "title": "Simplify Teradata migrations with Fabric Migration Assistant (Preview)",
+                 "pub_date": "2026-10-22T00:00:00+07:00"},
+                {"url": "b", "source": "Fabric Blog", "tier": "T1", "category": "new",
+                 "title": "Incrementally migrate database objects with Migration Assistant (Preview)",
+                 "pub_date": "2026-10-22T01:00:00+07:00"}]
+        keys = fb.story_keys(rows)
+        self.assertNotEqual(keys["a"], keys["b"])
+
+    def test_story_keys_respects_window(self):
+        rows = self._daxbench_rows()[1:3]
+        rows[1] = dict(rows[1], pub_date="2026-10-20T10:00:00+07:00")
+        keys = fb.story_keys(rows)
+        self.assertNotEqual(keys["s1"], keys["s2"])
+
+    def test_trends_count_story_once(self):
+        now = datetime(2026, 10, 28, tzinfo=fb.VN)
+        kws = [{"group": "g", "keyword": "DAX", "pattern": r"\bdax\b"}]
+        self.assertEqual(fb.compute_trends(self._daxbench_rows(), kws, now, "ts")[0]["news_7d"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()
