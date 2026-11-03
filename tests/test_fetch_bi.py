@@ -555,6 +555,19 @@ class TestBiFeed(unittest.TestCase):
         self.assertTrue(pat.search("UAT checklist before report sign-off"))
         self.assertFalse(pat.search("Quality engineer for high-speed cables"))
 
+    # ---- C63: Semantic link must match sempy_labs; Skills for Fabric keyword
+    def test_semantic_link_and_skills_pattern(self):
+        kws = {k["keyword"]: k for k in fb.load_keywords()}
+        sl = re.compile(kws["Semantic link"]["pattern"], re.I)
+        self.assertTrue(sl.search("import sempy_labs as labs"))
+        self.assertTrue(sl.search("Prepare Semantic Link Labs 0.18.1"))
+        self.assertTrue(sl.search("use sempy.fabric to list models"))
+        self.assertFalse(sl.search("semantic model linking strategy"))
+        sk = re.compile(kws["Skills for Fabric"]["pattern"], re.I)
+        self.assertTrue(sk.search("Skills for Fabric v0.3.19 ships 25 skills"))
+        self.assertTrue(sk.search("OneLake catalog Govern Skills GA"))
+        self.assertFalse(sk.search("Microsoft Fabric skill is in demand"))
+
 
 if __name__ == "__main__":
     unittest.main()
