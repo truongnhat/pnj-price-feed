@@ -19,9 +19,16 @@ Output files (UTF-8, no BOM, "\n" line endings):
                            summary   : first 300 chars of the item's own
                                        description (RSS/Atom), for keyword
                                        matching; empty when the source has none
-                           flags     : ";"-joined markers, e.g. stale_title
+                           flags     : ";"-joined markers: stale_title
                                        (the title names a month older than
-                                       pub_date: a re-dated old post)
+                                       pub_date: a re-dated old post);
+                                       republished (C47: the source re-dated
+                                       an item already seen, pub_date moved
+                                       > REPUBLISH_GAP past first_pub_date)
+                           first_pub_date : earliest pub_date ever seen for
+                                       this URL (bi_latest or bi_articles).
+                                       Ages, the 14-day window and Trend
+                                       counts use it, not pub_date
                            region    : job rows only: VN / APAC / Worldwide /
                                        Other (from locations + JD text)
   - data/bi_trends.csv : keyword counts from data/bi_keywords.csv (news 7d vs
@@ -45,6 +52,7 @@ import time
 import logging
 import os
 import re
+from collections import Counter
 import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
@@ -64,7 +72,8 @@ KEEP_DAYS = 14
 TIMEOUT = 30
 
 LATEST_COLS = ["timestamp", "source", "tier", "title", "url", "pub_date", "category", "status", "flags",
-               "region", "summary"]
+               "region", "summary", "first_pub_date"]
+REPUBLISH_GAP = timedelta(hours=6)  # C47: a later pub_date than this on a known URL = re-dated old post
 HEALTH_COLS = ["source", "url", "status", "items", "newest_pub_date", "error_msg", "last_checked"]
 
 HEADERS = {
@@ -251,15 +260,34 @@ def job_region(title: str) -> str:
 
 def annotate(row: dict) -> dict:
     """Fill flags/region (also for rows read back from an older CSV)."""
-    flags = [f for f in (row.get("flags") or "").split(";") if f and f != "stale_title"]
+    flags = [f for f in (row.get("flags") or "").split(";") if f and f not in ("stale_title", "republished")]
     if stale_title(row.get("title", ""), row.get("pub_date", "")):
         flags.append("stale_title")
+    if is_republished(row):
+        flags.append("republished")
     row["flags"] = ";".join(flags)
     row["region"] = job_region(row.get("title", "")) if row.get("category") == "job" else ""
     return row
 
 
 SUMMARY_LEN = 300
+
+
+def _dt(value: str) -> datetime | None:
+    try:
+        return datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def first_pub(row: dict) -> str:
+    """Original publication time: first_pub_date when known, else pub_date."""
+    return row.get("first_pub_date") or row.get("pub_date", "")
+
+
+def is_republished(row: dict) -> bool:
+    first, pub = _dt(row.get("first_pub_date", "")), _dt(row.get("pub_date", ""))
+    return bool(first and pub and pub - first > REPUBLISH_GAP)
 
 
 def item(source, tier, category, title, url, pub_date, summary: str = "") -> dict | None:
@@ -563,42 +591,96 @@ def norm_title(title: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", (title or "").lower()).strip()
 
 
+STORY_STOP = set(("the a an and or of to in for on with is are be by from at as it this that your you how what "
+                   "new now power bi fabric microsoft data using use via into vs my our we can not do does any "
+                   "about why when which more get here").split())
+STORY_WORD = re.compile(r"[a-z][a-z0-9]{2,}|v\d+")
+STORY_WINDOW = timedelta(hours=48)
+STORY_MAX_DF = 3      # a "rare" word appears in at most this many news titles
+STORY_MIN_SHARED = 2  # rare words two items must share to be one story
+
+
+def _story_words(text: str) -> set[str]:
+    return {w for w in STORY_WORD.findall((text or "").lower()) if w not in STORY_STOP}
+
+
+def story_keys(rows: list[dict]) -> dict[str, int]:
+    """C61: group news rows that tell one story (a blog post, its trailer and
+    its r/PowerBI repost) so Trend counts stories, not copies.
+    Same normalised title = same story (C28). Otherwise two rows within
+    STORY_WINDOW are one story when their titles (+ source name) share
+    STORY_MIN_SHARED rare words, or each title's rare words appear that many
+    times in the other's title + summary (linked domains count as words).
+    Two different T1 posts are never merged: Microsoft announces separate
+    features in separate posts. Returns url -> story id."""
+    news = [r for r in rows if r.get("category") not in ("job", "sample") and r.get("url")]
+    title = [_story_words(f"{r.get('title', '')} {(r.get('source') or '').split(' ')[0]}") for r in news]
+    full = [t | _story_words(re.sub(r"https?://(?:www\.)?([a-z0-9-]+)\.\S*", r" \1 ", r.get("summary") or ""))
+            for t, r in zip(title, news)]
+    df = Counter(w for t in title for w in t)
+    rare = [{w for w in t if df[w] <= STORY_MAX_DF} for t in title]
+    when = [_dt(first_pub(r)) for r in news]
+    parent = list(range(len(news)))
+
+    def root(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i in range(len(news)):
+        for j in range(i + 1, len(news)):
+            if norm_title(news[i].get("title", "")) == norm_title(news[j].get("title", "")):
+                parent[root(i)] = root(j)
+                continue
+            if news[i].get("tier") == "T1" and news[j].get("tier") == "T1":
+                continue
+            if not (when[i] and when[j] and abs(when[i] - when[j]) <= STORY_WINDOW):
+                continue
+            if (len(rare[i] & rare[j]) >= STORY_MIN_SHARED
+                    or (len(rare[i] & full[j]) >= STORY_MIN_SHARED and len(rare[j] & full[i]) >= STORY_MIN_SHARED)):
+                parent[root(i)] = root(j)
+    return {r["url"]: root(i) for i, r in enumerate(news)}
+
+
 def compute_trends(rows: list[dict], keywords: list[dict], now: datetime, ts: str,
                    bodies: dict[str, str] | None = None) -> list[dict]:
-    """Per keyword: news items in the last 7 days vs the 7 days before, and
+    """Per keyword: news stories in the last 7 days vs the 7 days before, and
     job rows in the 14-day window. Sorted by delta, then volume.
     Matched on title + summary + stored article text (bi_articles).
-    Rows flagged stale_title are skipped (C29); a news title seen twice
-    (e.g. a blog post and its r/PowerBI repost) counts once (C28)."""
+    Rows flagged stale_title are skipped (C29). Copies of one story (same
+    title, or the story_keys grouping, C61) count once, dated by the earliest
+    copy. Ages use first_pub_date, so a re-dated post (C47) is not counted as new."""
     bodies = bodies or {}
+    stories = story_keys(rows)
     out = []
     for k in keywords:
         try:
             pat = re.compile(k["pattern"], re.I)
         except re.error:
             continue
-        n7 = p7 = jobs = 0
-        seen = set()
+        jobs = 0
+        story_date: dict = {}
         for r in rows:
             if "stale_title" in (r.get("flags") or ""):
                 continue
             text = f"{r.get('title', '')} {r.get('summary', '')} {bodies.get(r.get('url', ''), '')}"
             if not pat.search(text):
                 continue
-            if r.get("category") not in ("job", "sample"):
-                key = norm_title(r.get("title", ""))
-                if key in seen:
-                    continue
-                seen.add(key)
             if r.get("category") == "job":
                 jobs += 1
                 continue
             if r.get("category") == "sample":
                 continue
-            try:
-                age = now - datetime.fromisoformat(r["pub_date"])
-            except (ValueError, KeyError):
+            when = _dt(first_pub(r))
+            if not when:
                 continue
+            key = stories.get(r.get("url"), norm_title(r.get("title", "")))
+            if key not in story_date or when < story_date[key]:
+                story_date[key] = when
+        n7 = p7 = 0
+        for when in story_date.values():
+            age = now - when
             if age <= timedelta(days=7):
                 n7 += 1
             elif age <= timedelta(days=14):
@@ -793,12 +875,21 @@ def write_csv(path: Path, cols: list[str], rows: list[dict]) -> None:
         w.writerows(rows)
 
 
+def _earliest(*values: str) -> str:
+    dated = [(d, v) for v in values if v and (d := _dt(v))]
+    return min(dated)[1] if dated else ""
+
+
 def merge(old: list[dict], new: list[dict], ts: str, now: datetime,
-          replace_sources: set[str] | None = None) -> list[dict]:
+          replace_sources: set[str] | None = None, known_pub: dict[str, str] | None = None) -> list[dict]:
     """Keep first-seen timestamp, drop items older than KEEP_DAYS, newest first.
     Sources in replace_sources are re-verified every run (TMDL samples), so their
-    old rows are dropped unless this run returned them again."""
+    old rows are dropped unless this run returned them again.
+    C47: first_pub_date keeps the earliest pub_date seen for a URL (old row,
+    known_pub from bi_articles, or this run); the 14-day cutoff uses it, so a
+    re-dated old post neither stays longer nor looks new."""
     replace_sources = replace_sources or set()
+    known_pub = known_pub or {}
     by_url = {r["url"]: r for r in old if r.get("url") and r.get("source") not in replace_sources}
     for r in new:
         prev = by_url.get(r["url"])
@@ -806,15 +897,19 @@ def merge(old: list[dict], new: list[dict], ts: str, now: datetime,
             r["timestamp"] = prev.get("timestamp") or ts
         else:
             r["timestamp"] = ts
+        r["first_pub_date"] = _earliest(prev.get("first_pub_date", "") if prev else "",
+                                        prev.get("pub_date", "") if prev else "",
+                                        known_pub.get(r["url"], ""), r.get("pub_date", ""))
         by_url[r["url"]] = r
+    for r in by_url.values():  # rows not returned this run (and rows from an older CSV)
+        r["first_pub_date"] = _earliest(r.get("first_pub_date", ""), known_pub.get(r["url"], ""),
+                                        r.get("pub_date", ""))
     cutoff = now - timedelta(days=KEEP_DAYS)
     keep = []
     for r in by_url.values():
-        try:
-            if datetime.fromisoformat(r["pub_date"]) >= cutoff:
-                keep.append(r)
-        except (ValueError, KeyError):
-            continue
+        first = _dt(first_pub(r))
+        if first and first >= cutoff:
+            keep.append(r)
     keep.sort(key=lambda r: r["pub_date"], reverse=True)
     return [annotate(r) for r in keep]
 
@@ -842,14 +937,17 @@ def main(feeds=FEEDS, fetcher: Callable = fetch) -> int:
                            "last_checked": ts})
             logging.warning("%s failed: %s", name, exc)
     replace = {h["source"] for h in health if h["status"] == "ok"} & REPLACE_EACH_RUN
-    latest = merge(read_csv(LATEST), new_rows, ts, now, replace)
+    old_articles = read_csv(ARTICLES)
+    known_pub = {a["url"]: a.get("pub_date", "") for a in old_articles}  # C47: articles keep the original date
+    latest = merge(read_csv(LATEST), new_rows, ts, now, replace, known_pub)
     write_csv(LATEST, LATEST_COLS, latest)
     write_csv(HEALTH, HEALTH_COLS, health)
     by_url = {r["url"]: r for r in latest}
     for r in new_rows:  # carry flags from the merged rows onto this run's rows
         if r["url"] in by_url:
             r["flags"] = by_url[r["url"]].get("flags", "")
-    articles = build_articles(read_csv(ARTICLES), new_rows, now, ts, lambda u: _get_page(session, u))
+            r["first_pub_date"] = by_url[r["url"]].get("first_pub_date", "")
+    articles = build_articles(old_articles, new_rows, now, ts, lambda u: _get_page(session, u))
     write_csv(ARTICLES, ARTICLE_COLS, articles)
     keywords = load_keywords()
     if keywords:
