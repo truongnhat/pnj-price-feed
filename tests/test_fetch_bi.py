@@ -580,6 +580,14 @@ class TestBiFeed(unittest.TestCase):
         self.assertFalse(pat.search("How to efficiently transform messy Excel files in Power Query? planning a cleanup"))
         self.assertFalse(pat.search("helps with capacity planning for private connectivity"))
 
+    # ---- C67: Purview / catalog must not count Databricks "Unity Catalog"
+    def test_purview_catalog_excludes_unity(self):
+        kws = {k["keyword"]: k for k in fb.load_keywords()}
+        pat = re.compile(kws["Purview / catalog"]["pattern"], re.I)
+        self.assertTrue(pat.search("Microsoft Purview data map for Fabric"))
+        self.assertTrue(pat.search("OneLake catalog table discovery"))
+        self.assertFalse(pat.search("Mirrored Azure Databricks Unity Catalog materialized views"))
+
     # ---- C47: re-dated old posts get first_pub_date + republished flag
     def test_merge_flags_republished(self):
         now = datetime(2026, 10, 27, 12, tzinfo=fb.VN)
