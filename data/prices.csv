@@ -5482,8 +5482,8 @@ timestamp,source,category,price_type,item,buy,sell,currency,unit,status,last_che
 2026-11-06T13:44:20+07:00,giavang.org,gold,retail,Phú Quý Hà Nội Nhẫn tròn Phú Quý (24K 999.9),137500000,140500000,VND,luong,ok,2026-11-09T07:51:44+07:00,2026-11-09T07:50:04+07:00,,,,
 2026-11-06T13:44:20+07:00,giavang.org,gold,retail,Phú Quý Hà Nội Phú Quý 1 Lượng 999.9,137500000,140500000,VND,luong,ok,2026-11-09T07:51:44+07:00,2026-11-09T07:50:04+07:00,,,,
 2026-11-06T13:44:20+07:00,giavang.org,gold,retail,Phú Quý Hà Nội Phú Quý 1 Lượng 99.9,137400000,140400000,VND,luong,ok,2026-11-09T07:51:44+07:00,2026-11-09T07:50:04+07:00,,,,
-2026-11-06T13:44:20+07:00,giavang.org,gold,retail,Phú Quý Hà Nội Vàng 999.9 phi SJC,129000000,,VND,luong,partial,2026-11-10T15:51:21+07:00,2026-11-10T15:50:03+07:00,,,,
-2026-11-06T13:44:20+07:00,giavang.org,gold,retail,Phú Quý Hà Nội Vàng 999.0 phi SJC,128500000,,VND,luong,partial,2026-11-10T15:51:21+07:00,2026-11-10T15:50:03+07:00,,,,
+2026-11-06T13:44:20+07:00,giavang.org,gold,retail,Phú Quý Hà Nội Vàng 999.9 phi SJC,129000000,,VND,luong,partial,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
+2026-11-06T13:44:20+07:00,giavang.org,gold,retail,Phú Quý Hà Nội Vàng 999.0 phi SJC,128500000,,VND,luong,partial,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
 2026-11-06T13:44:20+07:00,Vietcombank,fx,cash,USD,25370,25780,VND,1 USD,ok,2026-11-09T07:51:44+07:00,2026-11-08T23:00:00+07:00,,,,
 2026-11-06T13:44:20+07:00,Vietcombank,fx,transfer,USD,25400,25780,VND,1 USD,ok,2026-11-09T07:51:44+07:00,2026-11-08T23:00:00+07:00,,,,
 2026-11-06T13:44:20+07:00,Vietcombank,fx,cash,EUR,27944.19,29418.66,VND,1 EUR,ok,2026-11-06T14:25:30+07:00,2026-11-06T10:31:37+07:00,,,,
@@ -5752,7 +5752,7 @@ timestamp,source,category,price_type,item,buy,sell,currency,unit,status,last_che
 2026-11-07T20:58:41+07:00,finance.yahoo.com,stock,peer_session_date,TITAN.NS Titan ngày phiên,20261106,20261106,,yyyymmdd,ok,2026-11-08T09:43:08+07:00,2026-11-06T16:59:12+07:00,,,,
 2026-11-08T09:27:36+07:00,giavang.org,gold,retail,"BTMH Vàng nguyên liệu 999,9",128000000,,VND,luong,partial,2026-11-08T17:15:52+07:00,2026-11-08T17:15:04+07:00,,,,
 2026-11-08T09:27:36+07:00,giavang.org,gold,retail,BTMH Vàng nguyên liệu 99.9,127500000,,VND,luong,partial,2026-11-08T17:15:52+07:00,2026-11-08T17:15:04+07:00,,,,
-2026-11-08T16:29:53+07:00,finance.yahoo.com,stock,peer_session,TITAN.NS Titan đóng cửa phiên trước,5000,5000,INR,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-09T16:58:28+07:00,1385903,1385903,VND/cp,277.18
+2026-11-08T16:29:53+07:00,finance.yahoo.com,stock,peer_session,TITAN.NS Titan đóng cửa phiên trước,5000,5000,INR,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-09T16:58:28+07:00,1385903,1385903,VND/cp,277.18
 2026-11-08T16:29:53+07:00,finance.yahoo.com,stock,peer_session,TITAN.NS Titan khối lượng,145084,145084,,cp,ok,2026-11-08T16:29:53+07:00,2026-11-08T16:30:14+07:00,,,,
 2026-11-08T16:29:53+07:00,finance.yahoo.com,stock,peer_session_date,TITAN.NS Titan ngày phiên,20261108,20261108,,yyyymmdd,ok,2026-11-09T07:51:44+07:00,2026-11-08T16:59:30+07:00,,,,
 2026-11-08T17:15:52+07:00,finance.yahoo.com,stock,peer_session,TITAN.NS Titan đóng cửa,4990.5,4990.5,INR,1 cp,ok,2026-11-09T07:51:44+07:00,2026-11-08T16:59:30+07:00,1383269,1383269,VND/cp,277.18
@@ -5879,7 +5879,7 @@ timestamp,source,category,price_type,item,buy,sell,currency,unit,status,last_che
 2026-11-09T14:12:40+07:00,finance.yahoo.com,stock,peer_session_date,600612.SS Lao Feng Xiang ngày phiên,20261109,20261109,,yyyymmdd,ok,2026-11-09T14:55:52+07:00,2026-11-09T14:00:02+07:00,,,,
 2026-11-09T14:12:40+07:00,finance.yahoo.com,stock,peer_session,TITAN.NS Titan đóng cửa,4971.1,4971.1,INR,1 cp,ok,2026-11-09T14:12:40+07:00,2026-11-09T14:13:07+07:00,1380121,1380121,VND/cp,277.63
 2026-11-09T14:12:40+07:00,finance.yahoo.com,stock,peer_session,TITAN.NS Titan khối lượng,413085,413085,,cp,ok,2026-11-09T14:12:40+07:00,2026-11-09T14:13:07+07:00,,,,
-2026-11-09T14:12:40+07:00,finance.yahoo.com,stock,peer_session_date,TITAN.NS Titan ngày phiên,20261109,20261109,,yyyymmdd,ok,2026-11-10T15:51:21+07:00,2026-11-09T16:58:28+07:00,,,,
+2026-11-09T14:12:40+07:00,finance.yahoo.com,stock,peer_session_date,TITAN.NS Titan ngày phiên,20261109,20261109,,yyyymmdd,ok,2026-11-10T16:45:15+07:00,2026-11-09T16:58:28+07:00,,,,
 2026-11-09T14:12:40+07:00,feed (từ vietcap.com.vn),stock,foreign_room_avg,PNJ NN FOL bình quân 12 tháng %,54,54,,%,ok,2026-11-09T14:55:52+07:00,,,,,
 2026-11-09T14:55:52+07:00,giavang.org,gold,retail,PNJ TPHCM SJC,138200000,141200000,VND,luong,ok,2026-11-10T01:45:37+07:00,2026-11-09T22:55:02+07:00,,,,
 2026-11-09T14:55:52+07:00,giavang.org,gold,retail,PNJ Hà Nội SJC,138200000,141200000,VND,luong,ok,2026-11-10T01:45:37+07:00,2026-11-09T22:55:02+07:00,,,,
@@ -5927,7 +5927,7 @@ timestamp,source,category,price_type,item,buy,sell,currency,unit,status,last_che
 2026-11-10T00:49:46+07:00,vnappmob.com,gold,retail,SJC nữ trang 75%,95210486,105010486,VND,luong,ok,2026-11-10T08:46:42+07:00,2026-11-09T15:00:07+07:00,,,,
 2026-11-10T00:49:46+07:00,vnappmob.com,gold,retail,SJC nữ trang 99%,131415842,138415842,VND,luong,ok,2026-11-10T08:46:42+07:00,2026-11-09T15:00:07+07:00,,,,
 2026-11-10T00:49:46+07:00,vnappmob.com,gold,retail,"SJC nữ trang 99,99%",134800000,139800000,VND,luong,ok,2026-11-10T08:46:42+07:00,2026-11-09T15:00:07+07:00,,,,
-2026-11-10T00:49:46+07:00,giavang.org,gold,retail,PNJ Giá vàng nguyên liệu mua ngoài,128500000,,VND,luong,partial,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
+2026-11-10T00:49:46+07:00,giavang.org,gold,retail,PNJ Giá vàng nguyên liệu mua ngoài,128500000,,VND,luong,partial,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
 2026-11-10T00:49:46+07:00,giavang.org,gold,retail,DOJI Hà Nội SJC Lẻ,138200000,141200000,VND,luong,ok,2026-11-10T08:46:42+07:00,2026-11-10T08:00:13+07:00,,,,
 2026-11-10T00:49:46+07:00,giavang.org,gold,retail,DOJI Hà Nội Nhẫn tròn 999 Hưng Thịnh Vượng,137000000,141000000,VND,luong,ok,2026-11-10T08:46:42+07:00,2026-11-10T08:00:13+07:00,,,,
 2026-11-10T00:49:46+07:00,giavang.org,gold,retail,DOJI Hà Nội Nguyên liệu 99.99,131000000,133000000,VND,luong,ok,2026-11-10T08:46:42+07:00,2026-11-10T08:00:13+07:00,,,,
@@ -6013,10 +6013,10 @@ timestamp,source,category,price_type,item,buy,sell,currency,unit,status,last_che
 2026-11-10T00:49:46+07:00,finance.yahoo.com,stock,peer_session,PNDORA.CO Pandora đóng cửa phiên trước,901.6,901.6,DKK,1 cp,ok,2026-11-10T01:45:37+07:00,2026-11-09T22:59:32+07:00,3452580,3452580,VND/cp,3829.39
 2026-11-10T00:49:46+07:00,finance.yahoo.com,stock,peer_session,PNDORA.CO Pandora khối lượng,277878,277878,,cp,ok,2026-11-10T01:45:37+07:00,2026-11-09T22:59:32+07:00,,,,
 2026-11-10T00:49:46+07:00,finance.yahoo.com,stock,peer_session_date,PNDORA.CO Pandora ngày phiên,20261109,20261109,,yyyymmdd,ok,2026-11-10T01:45:37+07:00,2026-11-09T22:59:32+07:00,,,,
-2026-11-10T00:49:46+07:00,finance.yahoo.com,stock,peer_session,TITAN.NS Titan đóng cửa,5005,5005,INR,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-09T16:58:28+07:00,1383705,1383705,VND/cp,276.46
+2026-11-10T00:49:46+07:00,finance.yahoo.com,stock,peer_session,TITAN.NS Titan đóng cửa,5005,5005,INR,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-09T16:58:28+07:00,1383705,1383705,VND/cp,276.46
 2026-11-10T00:49:46+07:00,finance.yahoo.com,stock,peer_session,TITAN.NS Titan khối lượng,839804,839804,,cp,ok,2026-11-10T09:04:56+07:00,2026-11-09T16:58:28+07:00,,,,
 2026-11-10T00:49:46+07:00,feed (từ vietcap.com.vn),stock,foreign_room_avg,PNJ NN FOL bình quân 12 tháng %,53.86,53.86,,%,ok,2026-11-10T01:45:37+07:00,,,,,
-2026-11-10T00:49:46+07:00,feed (từ vietcap.com.vn),stock,foreign_room_avg,PNJ NN FOL số phiên tính bình quân,7,7,,phiên,ok,2026-11-10T15:51:21+07:00,,,,,
+2026-11-10T00:49:46+07:00,feed (từ vietcap.com.vn),stock,foreign_room_avg,PNJ NN FOL số phiên tính bình quân,7,7,,phiên,ok,2026-11-10T16:45:15+07:00,,,,,
 2026-11-10T01:45:37+07:00,gold-api.com,gold,spot,XAU,4105.5,4105.5,USD,troy_oz,ok,2026-11-10T01:45:37+07:00,2026-11-10T01:45:25+07:00,126764593,126764593,VND/luong,25610
 2026-11-10T01:45:37+07:00,gold-api.com,silver,spot,XAG,52.87,52.87,USD,troy_oz,ok,2026-11-10T01:45:37+07:00,2026-11-10T01:45:54+07:00,1632455,1632455,VND/luong,25610
 2026-11-10T01:45:37+07:00,finance.yahoo.com,stock,peer_session,CFR.SW Richemont khối lượng,700299,700299,,cp,ok,2026-11-10T01:45:37+07:00,2026-11-09T23:31:02+07:00,,,,
@@ -6076,34 +6076,34 @@ timestamp,source,category,price_type,item,buy,sell,currency,unit,status,last_che
 2026-11-10T08:46:42+07:00,Vietcombank,fx,transfer,SAR,6773.11,7064.91,VND,1 SAR,ok,2026-11-10T15:51:21+07:00,2026-11-10T08:37:16+07:00,,,,
 2026-11-10T08:46:42+07:00,Vietcombank,fx,cash,SEK,,2666.58,VND,1 SEK,partial,2026-11-10T15:51:21+07:00,2026-11-10T08:37:16+07:00,,,,
 2026-11-10T08:46:42+07:00,Vietcombank,fx,transfer,SEK,2558.01,2666.58,VND,1 SEK,ok,2026-11-10T15:51:21+07:00,2026-11-10T08:37:16+07:00,,,,
-2026-11-10T08:46:42+07:00,sbv.gov.vn,fx,central,USD,25600,25600,VND,1 USD,ok,2026-11-10T15:51:21+07:00,2026-11-10T00:00:00+07:00,,,,
+2026-11-10T08:46:42+07:00,sbv.gov.vn,fx,central,USD,25600,25600,VND,1 USD,ok,2026-11-10T16:45:15+07:00,2026-11-10T00:00:00+07:00,,,,
 2026-11-10T08:46:42+07:00,gold-api.com,gold,spot,XAU,4132.9,4132.9,USD,troy_oz,ok,2026-11-10T08:46:42+07:00,2026-11-10T08:47:00+07:00,127560788,127560788,VND/luong,25600
 2026-11-10T08:46:42+07:00,gold-api.com,silver,spot,XAG,53.39,53.39,USD,troy_oz,ok,2026-11-10T08:46:42+07:00,2026-11-10T08:46:59+07:00,1647867,1647867,VND/luong,25600
-2026-11-10T08:46:42+07:00,vietcap.com.vn,stock,session_date,PNJ NN ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:33:19+07:00,,,,
+2026-11-10T08:46:42+07:00,vietcap.com.vn,stock,session_date,PNJ NN ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:33:19+07:00,,,,
 2026-11-10T08:46:42+07:00,vietcap.com.vn,stock,foreign,PNJ NN KL mua/bán,0,0,,cp,ok,2026-11-10T09:04:56+07:00,2026-11-10T09:05:13+07:00,,,,
 2026-11-10T08:46:42+07:00,vietcap.com.vn,stock,foreign_room,PNJ NN sở hữu %,25.37,25.37,,%,ok,2026-11-10T09:04:56+07:00,2026-11-10T09:05:17+07:00,,,,
 2026-11-10T08:46:42+07:00,vietcap.com.vn,stock,foreign_room,PNJ NN FOL %,51.77,51.77,,%,ok,2026-11-10T09:04:56+07:00,2026-11-10T09:05:17+07:00,,,,
 2026-11-10T08:46:42+07:00,vietcap.com.vn,stock,foreign_room,PNJ NN room còn lại,120985232,120985232,,cp,ok,2026-11-10T08:46:42+07:00,2026-11-10T07:30:14+07:00,,,,
 2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,1929.HK Chow Tai Fook đóng cửa,12.03,12.03,HKD,1 cp,ok,2026-11-10T08:46:42+07:00,2026-11-10T08:32:01+07:00,39281,39281,VND/cp,3265.24
-2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,1929.HK Chow Tai Fook đóng cửa phiên trước,11.99,11.99,HKD,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:08:34+07:00,39150,39150,VND/cp,3265.24
+2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,1929.HK Chow Tai Fook đóng cửa phiên trước,11.99,11.99,HKD,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:08:34+07:00,39150,39150,VND/cp,3265.24
 2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,1929.HK Chow Tai Fook khối lượng,621589,621589,,cp,ok,2026-11-10T08:46:42+07:00,2026-11-10T08:32:01+07:00,,,,
-2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session_date,1929.HK Chow Tai Fook ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:08:34+07:00,,,,
+2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session_date,1929.HK Chow Tai Fook ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:08:34+07:00,,,,
 2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,0590.HK Luk Fook đóng cửa,21.56,21.56,HKD,1 cp,ok,2026-11-10T08:46:42+07:00,2026-11-10T08:31:26+07:00,70399,70399,VND/cp,3265.24
-2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,0590.HK Luk Fook đóng cửa phiên trước,21.42,21.42,HKD,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:08:34+07:00,69941,69941,VND/cp,3265.24
+2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,0590.HK Luk Fook đóng cửa phiên trước,21.42,21.42,HKD,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:08:34+07:00,69941,69941,VND/cp,3265.24
 2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,0590.HK Luk Fook khối lượng,5000,5000,,cp,ok,2026-11-10T08:46:42+07:00,2026-11-10T08:31:26+07:00,,,,
-2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session_date,0590.HK Luk Fook ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:08:34+07:00,,,,
+2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session_date,0590.HK Luk Fook ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:08:34+07:00,,,,
 2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,0116.HK Chow Sang Sang đóng cửa,13.41,13.41,HKD,1 cp,ok,2026-11-10T09:04:56+07:00,2026-11-10T08:47:36+07:00,43787,43787,VND/cp,3265.24
-2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,0116.HK Chow Sang Sang đóng cửa phiên trước,13.37,13.37,HKD,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:08:34+07:00,43656,43656,VND/cp,3265.24
+2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,0116.HK Chow Sang Sang đóng cửa phiên trước,13.37,13.37,HKD,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:08:34+07:00,43656,43656,VND/cp,3265.24
 2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,0116.HK Chow Sang Sang khối lượng,54000,54000,,cp,ok,2026-11-10T08:46:42+07:00,2026-11-10T08:32:04+07:00,,,,
-2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session_date,0116.HK Chow Sang Sang ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:08:34+07:00,,,,
+2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session_date,0116.HK Chow Sang Sang ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:08:34+07:00,,,,
 2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,6181.HK Laopu Gold đóng cửa,311.8,311.8,HKD,1 cp,ok,2026-11-10T08:46:42+07:00,2026-11-10T08:32:05+07:00,1018102,1018102,VND/cp,3265.24
-2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,6181.HK Laopu Gold đóng cửa phiên trước,306.8,306.8,HKD,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:08:34+07:00,1001776,1001776,VND/cp,3265.24
+2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,6181.HK Laopu Gold đóng cửa phiên trước,306.8,306.8,HKD,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:08:34+07:00,1001776,1001776,VND/cp,3265.24
 2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,6181.HK Laopu Gold khối lượng,29100,29100,,cp,ok,2026-11-10T08:46:42+07:00,2026-11-10T08:32:05+07:00,,,,
-2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session_date,6181.HK Laopu Gold ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:08:34+07:00,,,,
+2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session_date,6181.HK Laopu Gold ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:08:34+07:00,,,,
 2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,600612.SS Lao Feng Xiang đóng cửa,32.32,32.32,CNY,1 cp,ok,2026-11-10T08:46:42+07:00,2026-11-10T08:32:05+07:00,124058,124058,VND/cp,3838.41
-2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,600612.SS Lao Feng Xiang đóng cửa phiên trước,32.46,32.46,CNY,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T14:00:02+07:00,124595,124595,VND/cp,3838.41
+2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,600612.SS Lao Feng Xiang đóng cửa phiên trước,32.46,32.46,CNY,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T14:00:02+07:00,124595,124595,VND/cp,3838.41
 2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,600612.SS Lao Feng Xiang khối lượng,62400,62400,,cp,ok,2026-11-10T08:46:42+07:00,2026-11-10T08:32:05+07:00,,,,
-2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session_date,600612.SS Lao Feng Xiang ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T15:51:21+07:00,2026-11-10T14:00:02+07:00,,,,
+2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session_date,600612.SS Lao Feng Xiang ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T16:45:15+07:00,2026-11-10T14:00:02+07:00,,,,
 2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,MC.PA LVMH đóng cửa,408.75,408.75,EUR,1 cp,ok,2026-11-10T09:04:56+07:00,2026-11-09T23:37:41+07:00,11805804,11805804,VND/cp,28882.7
 2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,MC.PA LVMH đóng cửa phiên trước,418.65,418.65,EUR,1 cp,ok,2026-11-10T09:04:56+07:00,2026-11-09T23:37:41+07:00,12091743,12091743,VND/cp,28882.7
 2026-11-10T08:46:42+07:00,finance.yahoo.com,stock,peer_session,MC.PA LVMH khối lượng,655421,655421,,cp,ok,2026-11-10T09:04:56+07:00,2026-11-09T23:37:41+07:00,,,,
@@ -6125,9 +6125,9 @@ timestamp,source,category,price_type,item,buy,sell,currency,unit,status,last_che
 2026-11-10T09:04:56+07:00,vnappmob.com,gold,retail,SJC nữ trang 99%,131811881,138811881,VND,luong,ok,2026-11-10T09:04:56+07:00,2026-11-10T09:00:07+07:00,,,,
 2026-11-10T09:04:56+07:00,vnappmob.com,gold,retail,"SJC nữ trang 99,99%",135200000,140200000,VND,luong,ok,2026-11-10T09:04:56+07:00,2026-11-10T09:00:07+07:00,,,,
 2026-11-10T09:04:56+07:00,giavang.org,gold,retail,DOJI Hà Nội SJC Lẻ,138500000,141500000,VND,luong,ok,2026-11-10T09:04:56+07:00,2026-11-10T09:00:16+07:00,,,,
-2026-11-10T09:04:56+07:00,giavang.org,gold,retail,DOJI Hà Nội Nhẫn tròn 999 Hưng Thịnh Vượng,137200000,141200000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:00:16+07:00,,,,
-2026-11-10T09:04:56+07:00,giavang.org,gold,retail,DOJI Hà Nội Nguyên liệu 99.99,131200000,133200000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:00:16+07:00,,,,
-2026-11-10T09:04:56+07:00,giavang.org,gold,retail,DOJI Hà Nội Nguyên liệu 99.9,130700000,132700000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:00:16+07:00,,,,
+2026-11-10T09:04:56+07:00,giavang.org,gold,retail,DOJI Hà Nội Nhẫn tròn 999 Hưng Thịnh Vượng,137200000,141200000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:00:19+07:00,,,,
+2026-11-10T09:04:56+07:00,giavang.org,gold,retail,DOJI Hà Nội Nguyên liệu 99.99,131200000,133200000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:00:19+07:00,,,,
+2026-11-10T09:04:56+07:00,giavang.org,gold,retail,DOJI Hà Nội Nguyên liệu 99.9,130700000,132700000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:00:19+07:00,,,,
 2026-11-10T09:04:56+07:00,gold-api.com,gold,spot,XAU,4125.5,4125.5,USD,troy_oz,ok,2026-11-10T09:04:56+07:00,2026-11-10T09:04:59+07:00,127332389,127332389,VND/luong,25600
 2026-11-10T09:04:56+07:00,gold-api.com,silver,spot,XAG,53.25,53.25,USD,troy_oz,ok,2026-11-10T09:04:56+07:00,2026-11-10T09:04:59+07:00,1643546,1643546,VND/luong,25600
 2026-11-10T09:04:56+07:00,vietcap.com.vn,stock,foreign_room,PNJ NN room còn lại,120982932,120982932,,cp,ok,2026-11-10T09:04:56+07:00,2026-11-10T09:05:17+07:00,,,,
@@ -6140,71 +6140,121 @@ timestamp,source,category,price_type,item,buy,sell,currency,unit,status,last_che
 2026-11-10T09:04:56+07:00,finance.yahoo.com,stock,peer_session,6181.HK Laopu Gold khối lượng,109900,109900,,cp,ok,2026-11-10T09:04:56+07:00,2026-11-10T08:50:11+07:00,,,,
 2026-11-10T09:04:56+07:00,finance.yahoo.com,stock,peer_session,600612.SS Lao Feng Xiang đóng cửa,32.19,32.19,CNY,1 cp,ok,2026-11-10T09:04:56+07:00,2026-11-10T08:50:17+07:00,123559,123559,VND/cp,3838.41
 2026-11-10T09:04:56+07:00,finance.yahoo.com,stock,peer_session,600612.SS Lao Feng Xiang khối lượng,226100,226100,,cp,ok,2026-11-10T09:04:56+07:00,2026-11-10T08:50:17+07:00,,,,
-2026-11-10T15:51:21+07:00,vnappmob.com,gold,retail,SJC 1 chỉ,137900000,140930000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T12:00:07+07:00,,,,
-2026-11-10T15:51:21+07:00,vnappmob.com,gold,retail,"SJC 1L, 10L, 1KG",137900000,140900000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T12:00:07+07:00,,,,
-2026-11-10T15:51:21+07:00,vnappmob.com,gold,retail,SJC 5 chỉ,137900000,140920000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T12:00:07+07:00,,,,
-2026-11-10T15:51:21+07:00,vnappmob.com,gold,retail,"SJC nhẫn 99,99% 1-5 chỉ",136700000,140700000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T12:00:07+07:00,,,,
-2026-11-10T15:51:21+07:00,vnappmob.com,gold,retail,SJC nữ trang 75%,95135479,104935479,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T12:00:07+07:00,,,,
-2026-11-10T15:51:21+07:00,vnappmob.com,gold,retail,SJC nữ trang 99%,131316832,138316832,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T12:00:07+07:00,,,,
-2026-11-10T15:51:21+07:00,vnappmob.com,gold,retail,"SJC nữ trang 99,99%",135000000,139700000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T12:00:07+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ TPHCM SJC,137900000,140900000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ Hà Nội SJC,137900000,140900000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ Đà Nẵng SJC,137900000,140900000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ Miền Tây SJC,137900000,140900000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ Tây Nguyên SJC,137900000,140900000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ Đông Nam Bộ SJC,137900000,140900000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ Giá vàng nữ trang Nhẫn Trơn PNJ 999.9,136100000,140300000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ Giá vàng nữ trang Vàng Kim Bảo 999.9,136100000,140300000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ Giá vàng nữ trang Vàng Phúc Lộc Tài 999.9,136100000,140300000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,DOJI Hà Nội SJC Lẻ,137900000,140900000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:00:16+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,BTMC VRTL Vàng miếng 999.9 (24k),137000000,141000000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,BTMC VRTL Nhẫn tròn trơn 999.9 (24k),137000000,141000000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,BTMC Vàng SJC Vàng miếng 999.9 (24k),137000000,140900000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,BTMC Vàng Thị Trường Vàng 999.9 (24k),121200000,,VND,luong,partial,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
+2026-11-10T15:51:21+07:00,vnappmob.com,gold,retail,SJC 1 chỉ,137900000,140930000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T12:00:07+07:00,,,,
+2026-11-10T15:51:21+07:00,vnappmob.com,gold,retail,"SJC 1L, 10L, 1KG",137900000,140900000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T12:00:07+07:00,,,,
+2026-11-10T15:51:21+07:00,vnappmob.com,gold,retail,SJC 5 chỉ,137900000,140920000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T12:00:07+07:00,,,,
+2026-11-10T15:51:21+07:00,vnappmob.com,gold,retail,"SJC nhẫn 99,99% 1-5 chỉ",136700000,140700000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T12:00:07+07:00,,,,
+2026-11-10T15:51:21+07:00,vnappmob.com,gold,retail,SJC nữ trang 75%,95135479,104935479,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T12:00:07+07:00,,,,
+2026-11-10T15:51:21+07:00,vnappmob.com,gold,retail,SJC nữ trang 99%,131316832,138316832,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T12:00:07+07:00,,,,
+2026-11-10T15:51:21+07:00,vnappmob.com,gold,retail,"SJC nữ trang 99,99%",135000000,139700000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T12:00:07+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ TPHCM SJC,137900000,140900000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ Hà Nội SJC,137900000,140900000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ Đà Nẵng SJC,137900000,140900000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ Miền Tây SJC,137900000,140900000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ Tây Nguyên SJC,137900000,140900000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ Đông Nam Bộ SJC,137900000,140900000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ Giá vàng nữ trang Nhẫn Trơn PNJ 999.9,136100000,140300000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ Giá vàng nữ trang Vàng Kim Bảo 999.9,136100000,140300000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,PNJ Giá vàng nữ trang Vàng Phúc Lộc Tài 999.9,136100000,140300000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,DOJI Hà Nội SJC Lẻ,137900000,140900000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:00:19+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,BTMC VRTL Vàng miếng 999.9 (24k),137000000,141000000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,BTMC VRTL Nhẫn tròn trơn 999.9 (24k),137000000,141000000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,BTMC Vàng SJC Vàng miếng 999.9 (24k),137000000,140900000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,BTMC Vàng Thị Trường Vàng 999.9 (24k),121200000,,VND,luong,partial,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
 2026-11-10T15:51:21+07:00,giavang.org,gold,retail,"BTMH Vàng nguyên liệu 999,9",131400000,,VND,luong,partial,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
 2026-11-10T15:51:21+07:00,giavang.org,gold,retail,BTMH Vàng nguyên liệu 99.9,130900000,,VND,luong,partial,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,BTMH Vàng miếng SJC (Cty CP BTMH),137900000,140900000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,BTMH Nhẫn tròn 999.9 BTMH,136000000,,VND,luong,partial,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,BTMH Nhẫn ép vỉ Vàng Rồng Thăng Long,137000000,,VND,luong,partial,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,BTMH Vàng Kim Gia Bảo 24K (999.9),137000000,141000000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:05+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,Phú Quý Hà Nội Vàng miếng SJC,137400000,140900000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:03+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,Phú Quý Hà Nội Nhẫn tròn Phú Quý (24K 999.9),137400000,140400000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:03+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,Phú Quý Hà Nội Phú Quý 1 Lượng 999.9,137400000,140400000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:03+07:00,,,,
-2026-11-10T15:51:21+07:00,giavang.org,gold,retail,Phú Quý Hà Nội Phú Quý 1 Lượng 99.9,137300000,140300000,VND,luong,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:50:03+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,BTMH Vàng miếng SJC (Cty CP BTMH),137900000,140900000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:03+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,BTMH Nhẫn tròn 999.9 BTMH,136000000,,VND,luong,partial,2026-11-10T16:45:15+07:00,2026-11-10T16:45:03+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,BTMH Nhẫn ép vỉ Vàng Rồng Thăng Long,137000000,,VND,luong,partial,2026-11-10T16:45:15+07:00,2026-11-10T16:45:03+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,BTMH Vàng Kim Gia Bảo 24K (999.9),137000000,141000000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:03+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,Phú Quý Hà Nội Vàng miếng SJC,137400000,140900000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,Phú Quý Hà Nội Nhẫn tròn Phú Quý (24K 999.9),137400000,140400000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,Phú Quý Hà Nội Phú Quý 1 Lượng 999.9,137400000,140400000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
+2026-11-10T15:51:21+07:00,giavang.org,gold,retail,Phú Quý Hà Nội Phú Quý 1 Lượng 99.9,137300000,140300000,VND,luong,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:04+07:00,,,,
 2026-11-10T15:51:21+07:00,gold-api.com,gold,spot,XAU,4117.9,4117.9,USD,troy_oz,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:51:31+07:00,127097817,127097817,VND/luong,25600
 2026-11-10T15:51:21+07:00,gold-api.com,silver,spot,XAG,52.93,52.93,USD,troy_oz,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:51:31+07:00,1633669,1633669,VND/luong,25600
-2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,session_date,PNJ ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T15:51:21+07:00,2026-11-10T07:00:00+07:00,,,,
-2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,session,PNJ mở cửa,14400,14400,VND,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T07:00:00+07:00,14400,14400,VND/cp,1
-2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,session,PNJ cao nhất,14800,14800,VND,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T07:00:00+07:00,14800,14800,VND/cp,1
-2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,session,PNJ thấp nhất,13300,13300,VND,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T07:00:00+07:00,13300,13300,VND/cp,1
-2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,session,PNJ đóng cửa,14700,14700,VND,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T07:00:00+07:00,14700,14700,VND/cp,1
-2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,session,PNJ KL khớp lệnh,15671700,15671700,,cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T07:00:00+07:00,,,,
-2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,foreign,PNJ NN KL mua/bán,4090080,6891238,,cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:33:19+07:00,,,,
-2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,foreign,PNJ NN GT mua/bán,57476624000,95180868650,VND,VND,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:33:19+07:00,,,,
-2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,foreign_room,PNJ NN sở hữu %,26.17,26.17,,%,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:33:19+07:00,,,,
-2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,foreign_room,PNJ NN FOL %,53.4,53.4,,%,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:33:19+07:00,,,,
-2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,foreign_room,PNJ NN room còn lại,116877849,116877849,,cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:33:19+07:00,,,,
-2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,1929.HK Chow Tai Fook đóng cửa,12.08,12.08,HKD,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:08:34+07:00,39444,39444,VND/cp,3265.24
-2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,1929.HK Chow Tai Fook khối lượng,15357738,15357738,,cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:08:34+07:00,,,,
-2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,0590.HK Luk Fook đóng cửa,21.74,21.74,HKD,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:08:34+07:00,70986,70986,VND/cp,3265.24
-2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,0590.HK Luk Fook khối lượng,1409000,1409000,,cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:08:34+07:00,,,,
-2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,0116.HK Chow Sang Sang đóng cửa,13.62,13.62,HKD,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:08:34+07:00,44473,44473,VND/cp,3265.24
-2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,0116.HK Chow Sang Sang khối lượng,1863000,1863000,,cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:08:34+07:00,,,,
-2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,6181.HK Laopu Gold đóng cửa,313.8,313.8,HKD,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:08:34+07:00,1024633,1024633,VND/cp,3265.24
-2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,6181.HK Laopu Gold khối lượng,760179,760179,,cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:08:34+07:00,,,,
-2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,600612.SS Lao Feng Xiang đóng cửa,31.91,31.91,CNY,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T14:00:02+07:00,122484,122484,VND/cp,3838.41
-2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,600612.SS Lao Feng Xiang khối lượng,1492800,1492800,,cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T14:00:02+07:00,,,,
+2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,session_date,PNJ ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T16:45:15+07:00,2026-11-10T07:00:00+07:00,,,,
+2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,session,PNJ mở cửa,14400,14400,VND,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T07:00:00+07:00,14400,14400,VND/cp,1
+2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,session,PNJ cao nhất,14800,14800,VND,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T07:00:00+07:00,14800,14800,VND/cp,1
+2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,session,PNJ thấp nhất,13300,13300,VND,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T07:00:00+07:00,13300,13300,VND/cp,1
+2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,session,PNJ đóng cửa,14700,14700,VND,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T07:00:00+07:00,14700,14700,VND/cp,1
+2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,session,PNJ KL khớp lệnh,15671700,15671700,,cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T07:00:00+07:00,,,,
+2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,foreign,PNJ NN KL mua/bán,4090080,6891238,,cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:33:19+07:00,,,,
+2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,foreign,PNJ NN GT mua/bán,57476624000,95180868650,VND,VND,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:33:19+07:00,,,,
+2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,foreign_room,PNJ NN sở hữu %,26.17,26.17,,%,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:33:19+07:00,,,,
+2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,foreign_room,PNJ NN FOL %,53.4,53.4,,%,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:33:19+07:00,,,,
+2026-11-10T15:51:21+07:00,vietcap.com.vn,stock,foreign_room,PNJ NN room còn lại,116877849,116877849,,cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:33:19+07:00,,,,
+2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,1929.HK Chow Tai Fook đóng cửa,12.08,12.08,HKD,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:08:34+07:00,39444,39444,VND/cp,3265.24
+2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,1929.HK Chow Tai Fook khối lượng,15357738,15357738,,cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:08:34+07:00,,,,
+2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,0590.HK Luk Fook đóng cửa,21.74,21.74,HKD,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:08:34+07:00,70986,70986,VND/cp,3265.24
+2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,0590.HK Luk Fook khối lượng,1409000,1409000,,cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:08:34+07:00,,,,
+2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,0116.HK Chow Sang Sang đóng cửa,13.62,13.62,HKD,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:08:34+07:00,44473,44473,VND/cp,3265.24
+2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,0116.HK Chow Sang Sang khối lượng,1863000,1863000,,cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:08:34+07:00,,,,
+2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,6181.HK Laopu Gold đóng cửa,313.8,313.8,HKD,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:08:34+07:00,1024633,1024633,VND/cp,3265.24
+2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,6181.HK Laopu Gold khối lượng,760179,760179,,cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T15:08:34+07:00,,,,
+2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,600612.SS Lao Feng Xiang đóng cửa,31.91,31.91,CNY,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T14:00:02+07:00,122484,122484,VND/cp,3838.41
+2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,600612.SS Lao Feng Xiang khối lượng,1492800,1492800,,cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T14:00:02+07:00,,,,
 2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,MC.PA LVMH đóng cửa,407,407,EUR,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:36:44+07:00,11755260,11755260,VND/cp,28882.7
-2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,MC.PA LVMH đóng cửa phiên trước,402.45,402.45,EUR,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:36:44+07:00,11623843,11623843,VND/cp,28882.7
+2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,MC.PA LVMH đóng cửa phiên trước,402.45,402.45,EUR,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:30:49+07:00,11623843,11623843,VND/cp,28882.7
 2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,MC.PA LVMH khối lượng,62896,62896,,cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:36:44+07:00,,,,
-2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session_date,MC.PA LVMH ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:36:44+07:00,,,,
+2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session_date,MC.PA LVMH ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:30:49+07:00,,,,
 2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,CFR.SW Richemont đóng cửa,174.4,174.4,CHF,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:36:43+07:00,5452622,5452622,VND/cp,31265.03
-2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,CFR.SW Richemont đóng cửa phiên trước,170.8,170.8,CHF,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:36:43+07:00,5340068,5340068,VND/cp,31265.03
+2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,CFR.SW Richemont đóng cửa phiên trước,170.8,170.8,CHF,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:30:49+07:00,5340068,5340068,VND/cp,31265.03
 2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,CFR.SW Richemont khối lượng,69285,69285,,cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:36:43+07:00,,,,
-2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session_date,CFR.SW Richemont ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:36:43+07:00,,,,
+2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session_date,CFR.SW Richemont ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:30:49+07:00,,,,
 2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,PNDORA.CO Pandora đóng cửa,943.8,943.8,DKK,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:51:30+07:00,3630027,3630027,VND/cp,3846.18
-2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,PNDORA.CO Pandora đóng cửa phiên trước,925.2,925.2,DKK,1 cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:51:30+07:00,3558488,3558488,VND/cp,3846.18
+2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,PNDORA.CO Pandora đóng cửa phiên trước,925.2,925.2,DKK,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:11+07:00,3558488,3558488,VND/cp,3846.18
 2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,PNDORA.CO Pandora khối lượng,20579,20579,,cp,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:51:30+07:00,,,,
-2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session_date,PNDORA.CO Pandora ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T15:51:21+07:00,2026-11-10T15:51:30+07:00,,,,
-2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,TITAN.NS Titan khối lượng,839812,839812,,cp,ok,2026-11-10T15:51:21+07:00,2026-11-09T16:58:28+07:00,,,,
-2026-11-10T15:51:21+07:00,feed (từ vietcap.com.vn),stock,foreign_room_avg,PNJ NN FOL bình quân 12 tháng %,53.92,53.92,,%,ok,2026-11-10T15:51:21+07:00,,,,,
+2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session_date,PNDORA.CO Pandora ngày phiên,20261110,20261110,,yyyymmdd,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:11+07:00,,,,
+2026-11-10T15:51:21+07:00,finance.yahoo.com,stock,peer_session,TITAN.NS Titan khối lượng,839812,839812,,cp,ok,2026-11-10T16:45:15+07:00,2026-11-09T16:58:28+07:00,,,,
+2026-11-10T15:51:21+07:00,feed (từ vietcap.com.vn),stock,foreign_room_avg,PNJ NN FOL bình quân 12 tháng %,53.92,53.92,,%,ok,2026-11-10T16:45:15+07:00,,,,,
+2026-11-10T16:45:15+07:00,giavang.org,gold,retail,"BTMH Vàng nguyên liệu 999,9",127000000,,VND,luong,partial,2026-11-10T16:45:15+07:00,2026-11-10T16:45:03+07:00,,,,
+2026-11-10T16:45:15+07:00,giavang.org,gold,retail,BTMH Vàng nguyên liệu 99.9,126500000,,VND,luong,partial,2026-11-10T16:45:15+07:00,2026-11-10T16:45:03+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,USD,25380,25790,VND,1 USD,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,USD,25410,25790,VND,1 USD,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,EUR,28027.46,29506.3,VND,1 EUR,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,EUR,28310.56,29506.3,VND,1 EUR,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,GBP,33515.21,34939.38,VND,1 GBP,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,GBP,33853.75,34939.38,VND,1 GBP,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,JPY,155.9,166.64,VND,1 JPY,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,JPY,157.48,166.64,VND,1 JPY,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,AUD,17254,17987.17,VND,1 AUD,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,AUD,17428.28,17987.17,VND,1 AUD,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,SGD,19511.07,20380.89,VND,1 SGD,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,SGD,19708.15,20380.89,VND,1 SGD,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,THB,676.37,783.42,VND,1 THB,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,THB,751.53,783.42,VND,1 THB,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,CAD,17663.68,18414.27,VND,1 CAD,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,CAD,17842.1,18414.27,VND,1 CAD,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,CHF,30449.05,31742.92,VND,1 CHF,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,CHF,30756.62,31742.92,VND,1 CHF,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,HKD,3171.27,3325.93,VND,1 HKD,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,HKD,3203.31,3325.93,VND,1 HKD,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,CNY,3742.02,3901.04,VND,1 CNY,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,CNY,3779.82,3901.04,VND,1 CNY,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,DKK,,3922.48,VND,1 DKK,partial,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,DKK,3777.86,3922.48,VND,1 DKK,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,INR,,282.66,VND,1 INR,partial,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,INR,270.98,282.66,VND,1 INR,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,KRW,16.54,19.94,VND,1 KRW,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,KRW,18.38,19.94,VND,1 KRW,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,KWD,,86647.73,VND,1 KWD,partial,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,KWD,82638.75,86647.73,VND,1 KWD,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,MYR,,6386.67,VND,1 MYR,partial,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,MYR,6250.43,6386.67,VND,1 MYR,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,NOK,,2772.37,VND,1 NOK,partial,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,NOK,2659.49,2772.37,VND,1 NOK,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,RUB,,326.64,VND,1 RUB,partial,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,RUB,295.07,326.64,VND,1 RUB,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,SAR,,7073.38,VND,1 SAR,partial,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,SAR,6781.25,7073.38,VND,1 SAR,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,cash,SEK,,2673.97,VND,1 SEK,partial,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,Vietcombank,fx,transfer,SEK,2565.1,2673.97,VND,1 SEK,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:14:44+07:00,,,,
+2026-11-10T16:45:15+07:00,gold-api.com,gold,spot,XAU,4085.3,4085.3,USD,troy_oz,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:32+07:00,126091627,126091627,VND/luong,25600
+2026-11-10T16:45:15+07:00,gold-api.com,silver,spot,XAG,52.65,52.65,USD,troy_oz,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:31+07:00,1625027,1625027,VND/luong,25600
+2026-11-10T16:45:15+07:00,finance.yahoo.com,stock,peer_session,MC.PA LVMH đóng cửa,408.2,408.2,EUR,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:30:49+07:00,11800421,11800421,VND/cp,28908.43
+2026-11-10T16:45:15+07:00,finance.yahoo.com,stock,peer_session,MC.PA LVMH khối lượng,94900,94900,,cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:30:49+07:00,,,,
+2026-11-10T16:45:15+07:00,finance.yahoo.com,stock,peer_session,CFR.SW Richemont đóng cửa,174.9,174.9,CHF,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:30:49+07:00,5465585,5465585,VND/cp,31249.77
+2026-11-10T16:45:15+07:00,finance.yahoo.com,stock,peer_session,CFR.SW Richemont khối lượng,105718,105718,,cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:30:49+07:00,,,,
+2026-11-10T16:45:15+07:00,finance.yahoo.com,stock,peer_session,PNDORA.CO Pandora đóng cửa,947.6,947.6,DKK,1 cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:11+07:00,3648421,3648421,VND/cp,3850.17
+2026-11-10T16:45:15+07:00,finance.yahoo.com,stock,peer_session,PNDORA.CO Pandora khối lượng,32531,32531,,cp,ok,2026-11-10T16:45:15+07:00,2026-11-10T16:45:11+07:00,,,,
