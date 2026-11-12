@@ -546,6 +546,26 @@ class TestBiFeed(unittest.TestCase):
         self.assertFalse(pat.search("Expose the model through an API gateway"))
         self.assertFalse(pat.search("Integrate the payment gateway data"))
 
+    # ---- C73: bare "gateway" in Fabric connection posts must not count as SSAS
+    def test_ssas_no_bare_gateway(self):
+        kws = {k["keyword"]: k for k in fb.load_keywords()}
+        pat = re.compile(kws["SSAS / Analysis Services"]["pattern"], re.I)
+        self.assertFalse(pat.search("Govern Fabric connections, including gateway connections, with the admin API"))
+        self.assertFalse(pat.search("Pipelines can now reach sources through a VNet gateway"))
+        self.assertTrue(pat.search("Power BI gateway cluster load balancing"))
+        self.assertTrue(pat.search("Tabular model on SQL Server 2022"))
+
+    # ---- C74: Capacity / CU must not match a bare "capacity"
+    def test_capacity_no_bare_word(self):
+        kws = {k["keyword"]: k for k in fb.load_keywords()}
+        pat = re.compile(kws["Capacity / CU"]["pattern"], re.I)
+        self.assertTrue(pat.search("Find expensive queries from Capacity Metrics"))
+        self.assertTrue(pat.search("Right-size your Fabric capacity"))
+        self.assertTrue(pat.search("F64 capacity overage billing"))
+        self.assertTrue(pat.search("Each operation consumes CU seconds"))
+        self.assertFalse(pat.search("Our team has the capacity to deliver more reports"))
+        self.assertFalse(pat.search("Warehouse storage capacity for retail data"))
+
     # ---- C55: Model validation / UAT keyword
     def test_model_validation_pattern(self):
         kws = {k["keyword"]: k for k in fb.load_keywords()}

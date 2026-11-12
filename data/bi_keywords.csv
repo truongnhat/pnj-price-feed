@@ -6,7 +6,7 @@ Modelling,Calculation groups,calculation group
 Modelling,Composite model,composite model
 Modelling,DAX,\bdax\b
 Performance,Fallback DirectQuery,fallback|directquery
-Performance,Capacity / CU,"\bcu\b|capacity units?|\bf\d{1,3}\b capacity|capacity"
+Performance,Capacity / CU,"\bcu\b|capacity units?|\bf\d{1,3}\b capacity|(fabric|premium|power bi) capacit(y|ies)|capacity (metrics|admin|overage|smoothing|throttling|sku)"
 Performance,VertiPaq,vertipaq
 Performance,Refresh,\brefresh
 Performance,Custom SQL Pools,sql pools?\b|workload (isolation|management)
@@ -35,7 +35,7 @@ Career,Analytics Engineer,analytics engineer
 Career,Power BI Developer,power bi (developer|engineer|consultant)
 Career,Microsoft Fabric skill,microsoft fabric|\bms fabric\b|onelake|fabric (lakehouse|warehouse|capacity|notebooks?|pipelines?|data ?factory|data ?engineer\w*|semantic models?|real-time|workspaces?|admin\w*|apps?|iq|dw|sql|platform|skills?|certif\w*)
 Performance,Throttling,throttl\w*|surge protection|smoothing
-Platform,SSAS / Analysis Services,analysis services|\bssas\b|on-prem(ises)? (data )?gateway|(?<!compatible )(?<!api )(?<!payment )\bgateway\b|tabular model
+Platform,SSAS / Analysis Services,"analysis services|\bssas\b|on-prem(ises)? (data )?gateway|power bi\b[\w -]{0,20}\bgateway\b|\bgateway (cluster|to ssas|to analysis services)|tabular model"
 Governance,Fabric Policies,fabric polic\w*|policies center|policies in fabric|granular governance|policy sets?
 Governance,Model validation / UAT,daxbench|model validation|validate (every )?model changes?|\buat\b|sign.?off
 AI on model,Skills for Fabric,skills for fabric|govern skills|fabric-skills
