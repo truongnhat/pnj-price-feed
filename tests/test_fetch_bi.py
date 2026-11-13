@@ -588,6 +588,23 @@ class TestBiFeed(unittest.TestCase):
         self.assertTrue(sk.search("OneLake catalog Govern Skills GA"))
         self.assertFalse(sk.search("Microsoft Fabric skill is in demand"))
 
+    # ---- C71: Deprecation / retirement; HTML reporting keyword
+    def test_deprecation_and_html_patterns(self):
+        kws = {k["keyword"]: k for k in fb.load_keywords()}
+        dp = re.compile(kws["Deprecation / retirement"]["pattern"], re.I)
+        self.assertTrue(dp.search("Announcing the retirement of R and Python visuals in Power BI"))
+        self.assertTrue(dp.search("Power BI Q&A Is Retiring: How to Migrate"))
+        self.assertTrue(dp.search("Custom tool deprecated on 06/11"))
+        self.assertTrue(dp.search("SSAS 2016 reaches end of support"))
+        self.assertFalse(dp.search("Used latitude counts for the sunset/ocean"))
+        self.assertFalse(dp.search("Retirees dataset for pension analysis"))
+        ht = re.compile(kws["HTML reporting"]["pattern"], re.I)
+        self.assertTrue(ht.search("Is anyone exporting HTML dashboards to PDF?"))
+        self.assertTrue(ht.search("PBI -> HTML reporting!"))
+        self.assertTrue(ht.search("they are looking to replace Power BI dashboards with HTML"))
+        self.assertFalse(ht.search("HTML content visual in the report"))
+        self.assertFalse(ht.search("Export to HTML file format"))
+
     # ---- C65: Writeback / Planning must not match a bare "planning"
     def test_writeback_planning_pattern(self):
         kws = {k["keyword"]: k for k in fb.load_keywords()}

@@ -39,3 +39,5 @@ Platform,SSAS / Analysis Services,"analysis services|\bssas\b|on-prem(ises)? (da
 Governance,Fabric Policies,fabric polic\w*|policies center|policies in fabric|granular governance|policy sets?
 Governance,Model validation / UAT,daxbench|model validation|validate (every )?model changes?|\buat\b|sign.?off
 AI on model,Skills for Fabric,skills for fabric|govern skills|fabric-skills
+Platform,Deprecation / retirement,\bretir(e|ed|ement|ing)\b|\bdeprecat\w*|end of (support|life)
+Platform,HTML reporting,"\bhtml (dashboards?|reports?|reporting)\b|dashboards? (in|with|using) html|html (instead of|vs\.?|over) power bi|replac\w+ power bi\b[\w ]{0,20}with html"
